@@ -17,11 +17,12 @@ import (
 )
 
 type Musica struct{
-	Id: int,
-	Path: string
+	Id int
+	Path string
 }
-
+    
 func main() {
+	fmt.Println("WELCOME TO THE WALKMOON!")
 	// Error: wrong args
 	if len(os.Args) < 2 {
 		fmt.Println("Uso: walkmoon <caminho_da_pasta>")
@@ -44,37 +45,46 @@ func main() {
 		fmt.Println("Nenhuma musica foi encontrada.")
 		return
 	}
+	// debug quant of songs in the folder
+	fmt.Println("You got %d musics", len(playlist))
+
+	// init the speaker with the form of the file (SampleRate form)
+	sr := beep.SampleRate(44100)
+	speaker.Init(sr, sr.N(time.Second/10))
 
 	// for loop that play n songs of the folder
-	counter := 0
-	for counter < len(playlist){
-		song := playlist[counter]
+	count := 0
+	for count < len(playlist){
+		song := playlist[count]
 
 		fmt.Printf("Tocando: [%d] %s\n", song.Id, filepath.Base(song.Path))
-		playAndWait(song)
-
-		counter++
+		aux := playAndWait(song.Path)
+		count += aux
 	}
+
+	fmt.Println("Todas as musicas foram tocadas")
 }
 
 
 // Function that scans the folder passed in the arg and return the files in it
-func scanFolder(root string) ([]musica, error) {
-	var playlist []musica
+func scanFolder(root string) (playlist []Musica, err error) {
 	contador := 0
 
 	// cals the filepath.walk function that walks into the directory given as arg
-	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+	err = filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 
 		// Filtra apenas arquivos .mp3 (case-insensitive)
 		if !info.IsDir() && strings.HasSuffix(strings.ToLower(info.Name()), ".mp3") {
-			musica := {Id : contador, Path: path}
+			musica := Musica{Id: contador, Path: path}
 			
 			playlist = append(playlist, musica)
 			contador++
+
+			// implementar a lógica de loop da folder com uma flag loop ativada por uma flag
+			// no comando de terminal chamado -l
 		}
 		return nil
 	})
@@ -83,12 +93,13 @@ func scanFolder(root string) ([]musica, error) {
 }
 // function that creates a streamer with the actual file of the for loop and after that, playes it in
 // a speaker object
-func playAndWait(filePath string) {
+func playAndWait(filePath string, sr int) int {
 	// f = a file
 	f, err := os.Open(filePath)
 	if err != nil {
 		log.Println("Erro ao abrir arquivo:", err)
-		return
+		aux := 1
+		return aux
 	}
 	defer f.Close()
 
@@ -96,36 +107,148 @@ func playAndWait(filePath string) {
 	streamer, format, err := mp3.Decode(f)
 	if err != nil {
 		log.Println("Erro ao decodificar mp3:", err)
-		return
+		aux := 1
+		return aux
 	}
 	defer streamer.Close()
 
-	// init the speaker with the form of the file (SampleRate form)
-	speaker.Init(format.SampleRate, format.SampleRate.N(time.Second/10))
+	if format.SampleRate != sr {
+		beep.Resample(3, format.SampleRate, sr, s)
+		print("Speaker resampled in %d hz", format.SampleRate.N)
+	} 
 
-	// init the ctrl with a beep controler (allows pauses and, rollback and rollfront (sei lá o nome disso))
+	// pause controller
 	ctrl := &beep.Ctrl{Streamer: beep.Loop(1, streamer), Paused: false} 
-	// int the volume variablie with ai struct that allows us change volume, mute, and desmute the speaker
-	// It brings the before control functions
+
+	// volume controller
 	volume := &effects.Volume{
 		Streamer: ctrl,
 		Base: 2,
 		Volume: 0,
 		Silent: false,
 	}
-	
-	// init a variable with a text scanner for input in the terminal
-	scanner := bufio.NewScanner(os.Stdin)
 
 	// allows the end of the function
-	done := make(chan bool)
+	done := make(chan bool, 1) // arg "1" allows a channel with buffer
+
 	speaker.Play(beep.Seq(volume, beep.Callback(func() {
 		done <- true
 	})))
 
-	// for loop that allows use the scan for interact with the speaker until the songs end
+	// init a variable with a text scanner for input in the terminal
+	scanner := bufio.NewScanner(os.Stdin)
+
+	n_song := true
+	break_for := false
+
+	inputChan := make(chan string, 1)
+
+	go func() {
+		for scanner.Scan() {
+            inputChan <- strings.TrimSpace(scanner.Text())
+        }
+	}()
+
 	for {
-		// Logica de contagem de tempo 
+
+		// Opcoes atuais de acao com o streamer volume
+		fmt.Println("\nPress [p] to pause/resume")
+		fmt.Println("Press [i] to increase volume")
+		fmt.Println("Press [k] to decrease volume")
+		fmt.Println("Press [m] to mute volume")
+		fmt.Println("Press [l] to next song")
+		fmt.Println("Press [j] to previous song")
+		fmt.Print("-> ")
+		select {
+			case <-done:
+				fmt.Println("Playing next song...")
+				return 1
+
+			case resp := <-inputChan: 
+				// Switch case for player manipulation 
+        		switch resp {
+				// pause player
+        		case "p":
+        		    speaker.Lock()
+        		    ctrl.Paused = !ctrl.Paused
+        		    speaker.Unlock()
+					if ctrl.Paused {
+						fmt.Println("Pausado")
+					} else{
+						fmt.Println("Despausado")
+					}
+				
+				// increase volume
+        		case "i":
+					if volume.Volume < 3{
+						volume.Volume += 0.5
+						fmt.Println("Volume atual: %f", volume.Volume)
+						continue
+					}
+					fmt.Println("Volume maximo!!!")
+					
+				// decrease volume
+        		case "k":
+					if volume.Volume > -5 {
+						volume.Volume += -0.5
+						fmt.Println("Volume atual: %f", volume.Volume)
+						continue
+					}
+					fmt.Println("Volume minimo!!!")
+				
+				// mute player
+				case "m":
+					volume.Silent = !volume.Silent
+					if volume.Silent {
+						fmt.Println("Mutado")
+						continue
+					}
+					fmt.Println("Desmutado")
+				
+				// jump for the previous song
+				case "j":
+					n_song = false
+					break_for = true
+					speaker.Clear()
+					break
+				
+				// jump for the next song
+				case "l":
+					n_song = true
+					break_for = true
+					speaker.Clear()
+					break
+				
+				// case if the user press enter with nothing writed
+        		case "":    
+        		    continue
+					
+        		default:
+        		    fmt.Printf("Comando '%s' não reconhecido\n", resp)
+        		}
+				
+		}
+		
+		fmt.Println("Ainda estou aqui")
+
+		if(break_for) {break}
+	}
+
+	aux := 1
+
+	if (!n_song){
+		aux = -1
+	}  
+
+	return aux
+}
+
+// #####--------------------- TO DO ---------------------####
+// func decTypeArchive(f *os.File) {
+
+// }
+
+// Logica de contagem de tempo 
 		// select {
 		// case <-done:
 		// 	return
@@ -134,82 +257,3 @@ func playAndWait(filePath string) {
 		// 	fmt.Println(format.SampleRate.D(streamer.Position()).Round(time.Second))
 		// 	speaker.Unlock()
 		// }
-
-		// Opcoes atuais de acao com o streamer volume
-		fmt.Println("\nPress [p] to pause/resume")
-        fmt.Println("Press [i] to increase volume")
-        fmt.Println("Press [k] to decrease volume")
-		fmt.Println("Press [m] to mute volume")
-		fmt.Println("Press [l] to next song")
-		fmt.Println("Press [j] to previous song")
-        fmt.Print("-> ")
-
-        // Aguarda a entrada do usuário
-        if !scanner.Scan() {
-            break
-        }
-
-        // scanner.Text() cathcs the string. TrimSpace remove spaces and and \n
-        resp := strings.TrimSpace(scanner.Text())
-
-		// Switch case com as opcoes de manipulacao do speaker possiveis
-        switch resp {
-		// pause player
-        case "p":
-            speaker.Lock()
-            ctrl.Paused = !ctrl.Paused
-            speaker.Unlock()
-			if ctrl.Paused {
-				fmt.Println("Pausado")
-			} else{
-				fmt.Println("Despausado")
-			}
-            
-		// increase volume
-        case "i":
-			if volume.Volume < 3{
-				volume.Volume += 0.5
-				fmt.Println("Volume atual: %f", volume.Volume)
-				continue
-			}
-			fmt.Println("Volume maximo!!!")
-			
-		// decrease volume
-        case "k":
-			if volume.Volume > -5 {
-				volume.Volume += -0.5
-				fmt.Println("Volume atual: %f", volume.Volume)
-				continue
-			}
-			fmt.Println("Volume minimo!!!")
-	
-		// mute player
-		case "m":
-			volume.Silent = !volume.Silent
-			if volume.Silent {
-				fmt.Println("Mutado")
-				continue
-			}
-			fmt.Println("Desmutado")
-		
-		// jump for the previous song
-		case "j":
-			continue
-		
-		// jump for the next song
-		case "l":
-			continue
-		
-		// case if the user press enter with nothing writed
-        case "":    
-            continue
-			
-        default:
-            fmt.Printf("Comando '%s' não reconhecido\n", resp)
-        }
-	}
-}
-
-// func decTypeArchive(f *os.File) {
-
-// }
