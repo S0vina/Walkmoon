@@ -58,7 +58,7 @@ func main() {
 		song := playlist[count]
 
 		fmt.Printf("Tocando: [%d] %s\n", song.Id, filepath.Base(song.Path))
-		aux := playAndWait(song.Path)
+		aux := playAndWait(song.Path, sr)
 		count += aux
 	}
 
@@ -93,7 +93,7 @@ func scanFolder(root string) (playlist []Musica, err error) {
 }
 // function that creates a streamer with the actual file of the for loop and after that, playes it in
 // a speaker object
-func playAndWait(filePath string, sr int) int {
+func playAndWait(filePath string, sr beep.SampleRate) int {
 	// f = a file
 	f, err := os.Open(filePath)
 	if err != nil {
@@ -113,7 +113,7 @@ func playAndWait(filePath string, sr int) int {
 	defer streamer.Close()
 
 	if format.SampleRate != sr {
-		beep.Resample(3, format.SampleRate, sr, s)
+		beep.Resample(3, format.SampleRate, sr, streamer)
 		print("Speaker resampled in %d hz", format.SampleRate.N)
 	} 
 
