@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"strconv"
+	"math/rand"
 
 	"github.com/gopxl/beep/v2"
 	"github.com/gopxl/beep/v2/mp3"
@@ -87,13 +89,14 @@ func NewAP () (ap *audioPlayer, err error){
 	return
 }
 
-func playAndWait(filePath string, ap *audioPlayer) int {
+func playAndWait(filePath string, ap *audioPlayer) (aux int, end bool) {
 	// f = a path for a song
+	end = false
+	aux = 1
 	f, err := os.Open(filePath)
 	if err != nil {
 		log.Println("Erro ao abrir arquivo:", err)
-		aux := 1
-		return aux
+		return
 	}
 	defer f.Close()
 
@@ -101,8 +104,7 @@ func playAndWait(filePath string, ap *audioPlayer) int {
 	streamer, format, err := mp3.Decode(f)
 	if err != nil {
 		log.Println("Erro ao decodificar mp3:", err)
-		aux := 1
-		return aux
+		return
 	}
 	defer streamer.Close()
 
@@ -119,6 +121,7 @@ func playAndWait(filePath string, ap *audioPlayer) int {
 	// trigger for the end of the function if the speaker.Play ends
 	done := make(chan bool, 1) // arg "1" allows a channel with buffer
 
+	
 	speaker.Play(beep.Seq(ap.Volume, beep.Callback(func() {
 		done <- true
 	})))
@@ -135,11 +138,12 @@ func playAndWait(filePath string, ap *audioPlayer) int {
 		fmt.Println("Press [m] to mute volume")
 		fmt.Println("Press [l] to next song")
 		fmt.Println("Press [j] to previous song")
+		fmt.Println("Press [q] to quit")
 		fmt.Print("-> ")
 		select {
 			case <-done:
 				fmt.Println("Playing next song...")
-				return 1
+				return 
 
 			case resp := <-ap.InputChan: 
 				// Switch case for player manipulation 
@@ -195,6 +199,11 @@ func playAndWait(filePath string, ap *audioPlayer) int {
 					break_for = true
 					speaker.Clear()
 					break
+
+				case "q":
+					fmt.Println("Saindo........")
+					break_for = true
+					end = true
 				
 				// case if the user press enter with nothing writed
         		case "":    
@@ -205,19 +214,15 @@ func playAndWait(filePath string, ap *audioPlayer) int {
         		}
 				
 		}
-		
-		fmt.Println("Ainda estou aqui")
 
 		if(break_for) {break}
 	}
-
-	aux := 1
 
 	if (!next_song){
 		aux = -1
 	}  
 
-	return aux
+	return
 }
 
 // #####--------------------- TO DO ---------------------####
@@ -248,8 +253,17 @@ func main() {
 	// path of the folder with the musics
 	folderPath := os.Args[1]
 
-	ap, errNewAP := NewAP() 
+	if os.Args[2] != "0" && os.Args[2] != "1"{
+		fmt.Println("No format %s format exists", os.Args[2])
+	}
 
+	mode, errMode := strconv.Atoi(os.Args[2])
+	if errMode != nil {
+		log.Fatal(errMode)
+	}
+
+	fmt.Println(mode)
+	ap, errNewAP := NewAP() 
 	if errNewAP != nil {
 		log.Fatal(errNewAP)
 	}
@@ -276,15 +290,30 @@ func main() {
 
 	// for loop that play n songs of the folder
 	count := 0
-	for count < len(playlist){
-		song := playlist[count]
 
-		fmt.Printf("Tocando: [%d] %s\n", song.Id, filepath.Base(song.Path))
-		aux := playAndWait(song.Path, ap)
-		count += aux
+	if mode == 0 {
+		for count < len(playlist){
+			song := playlist[count]
+
+			fmt.Printf("Tocando: [%d] %s\n", song.Id, filepath.Base(song.Path))
+			aux, end := playAndWait(song.Path, ap)
+			if end {
+				return
+			}
+			count += aux
+		}
+	}else {
+		for count < len(playlist){
+			song := playlist[rand.Intn(len(playlist))]
+
+			fmt.Printf("Tocando: [%d] %s\n", song.Id, filepath.Base(song.Path))
+			aux, end := playAndWait(song.Path, ap)
+			if end {
+				return
+			}
+			count += aux
+		}
 	}
 
 	fmt.Println("Todas as musicas foram tocadas")
 }
-
-
