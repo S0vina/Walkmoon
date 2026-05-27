@@ -131,6 +131,11 @@ func playAndWait(filePath string, ap *audioPlayer) (aux int, end bool) {
 
 	for {
 
+		fmt.Print("\033[H\033[2J")
+
+		fmt.Println("WELCOME TO THE WALKMOON!")
+	  fmt.Println("------------------------")
+
 		// Opcoes atuais de acao com o streamer volume
 		fmt.Println("\nPress [p] to pause/resume")
 		fmt.Println("Press [i] to increase volume")
@@ -241,9 +246,6 @@ func playAndWait(filePath string, ap *audioPlayer) (aux int, end bool) {
 		// }
     
 func main() {
-	fmt.Println("WELCOME TO THE WALKMOON!")
-	fmt.Println("------------------------")
-
 	// Error: wrong args
 	if len(os.Args) < 2 {
 		fmt.Println("Uso: walkmoon <caminho_da_pasta>")
