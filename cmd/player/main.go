@@ -262,7 +262,6 @@ func main() {
 		log.Fatal(errMode)
 	}
 
-	fmt.Println(mode)
 	ap, errNewAP := NewAP() 
 	if errNewAP != nil {
 		log.Fatal(errNewAP)
@@ -284,7 +283,7 @@ func main() {
 	
 	// if folder with no songs, break the program
 	if len(playlist) == 0 {
-		fmt.Println("Nenhuma musica foi encontrada.")
+		fmt.Println("No songs founded.")
 		return
 	}
 
@@ -302,15 +301,29 @@ func main() {
 			}
 			count += aux
 		}
+
 	}else {
-		for count < len(playlist){
-			song := playlist[rand.Intn(len(playlist))]
+		var played_songs[] int 
+
+		for {
+			// generate a random number for choose the next song
+			var num int = rand.Intn(len(playlist))
+
+			// trying to implement a queue of songs played
+			// create a flag last_song. If it's true, than take the last number of the queue
+			// and play that song. Make last_song false. And assim sucessivamente. 
+			if len(played_songs) < 49 {
+				played_songs = append(played_songs, num)
+			}
+
+			song := playlist[num]
 
 			fmt.Printf("Tocando: [%d] %s\n", song.Id, filepath.Base(song.Path))
 			aux, end := playAndWait(song.Path, ap)
 			if end {
 				return
 			}
+
 			count += aux
 		}
 	}
