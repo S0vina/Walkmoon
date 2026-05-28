@@ -305,7 +305,7 @@ func main() {
 		}
 
 	}else {
-		var played_songs[] int 
+		var played_songs[] int
 
 		for {
 			// generate a random number for choose the next song
