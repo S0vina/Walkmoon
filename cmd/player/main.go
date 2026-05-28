@@ -55,6 +55,5 @@ func main() {
 	
 	}else {
 		ap.PlayShuffle(playlist)
-
 	}
 }
