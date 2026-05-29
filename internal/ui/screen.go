@@ -26,12 +26,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		tecla := msg.String()
 
-		if tecla == "q" || tecla == "ctrl+c" {
+		switch tecla {
+
+		case "q", "ctrl+c":
 			m.player.InputChan <- "q"
 			return m, tea.Quit
-		}
-			
-		m.player.InputChan <- tecla
+		case "p":
+			m.player.TogglePause()
+		case "+":
+			m.player.AddVolume(0.5)
+		case "-":
+			m.player.AddVolume(-0.5)
+		case "m":
+			m.player.ToggleMute()
+		case "l", "j":
+			m.player.InputChan <- tecla
+		}	
 	}
 	return m, nil
 }
@@ -40,9 +50,9 @@ func (m Model) View() string {
 	s := "\n  WALKMOON - Interface Terminal\n\n"
 	
 	if m.player.Ctrl.Paused {
-		s += "  estado: [⏸  PAUSADO]\n"
+		s += "  estado: [▶ PAUSADO]\n"
 	} else {
-		s += "  estado: [▶  TOCANDO]\n"
+		s += "  estado: [⏸ TOCANDO]\n"
 	}
 
 	s += fmt.Sprintf("  volume: %.1f\n", m.player.Volume.Volume)

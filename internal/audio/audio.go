@@ -146,33 +146,7 @@ func (ap *AudioPlayer) Play(path_song string) (imm int, end bool ){
 
 			case resp := <-ap.InputChan: 
 				// Switch case for player manipulation 
-        		switch resp {
-					// pause player
-					case "p":
-						speaker.Lock()
-						ap.Ctrl.Paused = !ap.Ctrl.Paused
-						speaker.Unlock()	
-					
-					// increase volume
-					case "+":
-						if ap.Volume.Volume < 3{
-							ap.Volume.Volume += 0.5
-							continue
-						}						
-					// decrease volume
-					case "-":
-						if ap.Volume.Volume > -5 {
-							ap.Volume.Volume += -0.5
-							continue
-						}	
-					
-					// mute player
-					case "m":
-						ap.Volume.Silent = !ap.Volume.Silent
-						if ap.Volume.Silent {
-							continue
-						}
-					
+        		switch resp {		
 					// jump for the previous song
 					case "j":
 						next_song = false
@@ -188,12 +162,6 @@ func (ap *AudioPlayer) Play(path_song string) (imm int, end bool ){
 					case "q":
 						end = true
 						break MainLoop
-					
-					// case if the user press enter with nothing writed
-					case "":    
-						continue
-						
-					default:
         		}
 		}
 	}
@@ -203,6 +171,27 @@ func (ap *AudioPlayer) Play(path_song string) (imm int, end bool ){
 	}  
 
 	return
+}
+
+func (ap *AudioPlayer) TogglePause(){
+	speaker.Lock()
+	ap.Ctrl.Paused = !ap.Ctrl.Paused
+	speaker.Unlock()
+}
+
+func(ap *AudioPlayer) AddVolume(value float64) {
+	speaker.Lock()
+	newVolume := ap.Volume.Volume + value
+	if newVolume <= 3 && newVolume >= -5 {
+		ap.Volume.Volume = newVolume
+	}
+	speaker.Unlock()
+}
+
+func(ap *AudioPlayer) ToggleMute() {
+	speaker.Lock()
+	ap.Volume.Silent = !ap.Volume.Silent
+	speaker.Unlock()
 }
 
 // method: plays the playlist in order of songs
@@ -246,3 +235,4 @@ func (ap *AudioPlayer) PlayShuffle(playlist []Musica) {
 		count += imm
 	}
 }
+
