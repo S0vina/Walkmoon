@@ -1,11 +1,14 @@
 package main
 
 import (
-	"github.com/S0vina/walkmoon/internal/audio"
 	"strconv"
 	"fmt"
 	"log"
 	"os"
+
+	"github.com/S0vina/walkmoon/internal/audio"
+	"github.com/S0vina/walkmoon/internal/ui"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 func main() {
@@ -18,11 +21,12 @@ func main() {
 	// path of the folder with the musics
 	folderPath := os.Args[1]
 
-	if os.Args[2] != "0" && os.Args[2] != "1"{
-		fmt.Println("No format %s format exists", os.Args[2])
+	ModeStr := "0"
+	if len(os.Args) >= 3 {
+		ModeStr = os.Args[2]
 	}
 
-	mode, errMode := strconv.Atoi(os.Args[2])
+	mode, errMode := strconv.Atoi(ModeStr)
 	if errMode != nil {
 		log.Fatal(errMode)
 	}
@@ -31,8 +35,6 @@ func main() {
 	if errNewAP != nil {
 		log.Fatal(errNewAP)
 	}
-
-	ap.StartInputListener()
 
 	// songs = [archives], err = any error
 	playlist, errScan := ap.ScanFolder(folderPath)	
@@ -49,11 +51,19 @@ func main() {
 	}
 
 	// for loop that play n songs of the folder
+	go func() {
+		if mode == 0 {
+			ap.PlaySequencial(playlist)
+		
+		}else {
+			ap.PlayShuffle(playlist)
+		}
+	}()
 
-	if mode == 0 {
-		ap.PlaySequencial(playlist)
-	
-	}else {
-		ap.PlayShuffle(playlist)
+	telaInicial := ui.New(ap)
+	programa := tea.NewProgram(telaInicial, tea.WithAltScreen())
+
+	if _, err := programa.Run(); err != nil {
+		log.Fatal("erro ao iniciar a interface gráfica:", err)
 	}
 }
