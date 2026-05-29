@@ -2,8 +2,6 @@ package audio
 
 // imports
 import (
-	"fmt"
-	"bufio"
 	"log"
 	"os"
 	"path/filepath"
@@ -29,7 +27,6 @@ type AudioPlayer struct{
 	Ctrl       *beep.Ctrl
 	Volume     *effects.Volume
 	InputChan 	chan string
-	Scanner 	*bufio.Scanner
 }
 
 // method: creates a new audioPlayer
@@ -46,7 +43,6 @@ func New() (ap *AudioPlayer, err error){
 	}
 
 	inputChan := make(chan string, 1)
-	scanner := bufio.NewScanner(os.Stdin)
 
 	speaker.Init(sr, sr.N(time.Second/10))
 
@@ -55,7 +51,6 @@ func New() (ap *AudioPlayer, err error){
 		Ctrl: 		ctrl,
 		Volume:     volume,
 		InputChan: 	inputChan,
-		Scanner: 	scanner,
 	}
 
 	err = nil
@@ -142,101 +137,33 @@ func (ap *AudioPlayer) Play(path_song string) (imm int, end bool ){
 	})))
 
 	next_song := true
-	break_for := false
 
-	for {
-
-		fmt.Print("\033[H\033[2J")
-
-		fmt.Println("WELCOME TO THE WALKMOON!")
-		fmt.Println("------------------------")
-		fmt.Println()
-		fmt.Printf("Tocando: %s\n", filepath.Base(path_song))
-		// Opcoes atuais de acao com o streamer volume
-		fmt.Println("\nPress [p] to pause/resume")
-		fmt.Println("Press [i] to increase volume")
-		fmt.Println("Press [k] to decrease volume")
-		fmt.Println("Press [m] to mute volume")
-		fmt.Println("Press [l] to next song")
-		fmt.Println("Press [j] to previous song")
-		fmt.Println("Press [q] to quit")
-		fmt.Print("-> ")
+	MainLoop:
+	for {	
 		select {
-			case <-done:
-				fmt.Println("Playing next song...")
+			case <-done:	
 				return 
 
 			case resp := <-ap.InputChan: 
 				// Switch case for player manipulation 
-        		switch resp {
-				// pause player
-        		case "p":
-        		    speaker.Lock()
-        		    ap.Ctrl.Paused = !ap.Ctrl.Paused
-        		    speaker.Unlock()
-					if ap.Ctrl.Paused {
-						fmt.Println("Pausado")
-					} else{
-						fmt.Println("Despausado")
-					}
-				
-				// increase volume
-        		case "i":
-					if ap.Volume.Volume < 3{
-						ap.Volume.Volume += 0.5
-						fmt.Println("Volume atual: %f", ap.Volume.Volume)
-						continue
-					}
-					fmt.Println("Volume maximo!!!")
+        		switch resp {		
+					// jump for the previous song
+					case "j":
+						next_song = false
+						speaker.Clear()
+						break MainLoop
 					
-				// decrease volume
-        		case "k":
-					if ap.Volume.Volume > -5 {
-						ap.Volume.Volume += -0.5
-						fmt.Println("Volume atual: %f", ap.Volume.Volume)
-						continue
-					}
-					fmt.Println("Volume minimo!!!")
-				
-				// mute player
-				case "m":
-					ap.Volume.Silent = !ap.Volume.Silent
-					if ap.Volume.Silent {
-						fmt.Println("Mutado")
-						continue
-					}
-					fmt.Println("Desmutado")
-				
-				// jump for the previous song
-				case "j":
-					next_song = false
-					break_for = true
-					speaker.Clear()
-					break
-				
-				// jump for the next song
-				case "l":
-					next_song = true
-					break_for = true
-					speaker.Clear()
-					break
+					// jump for the next song
+					case "l":
+						next_song = true
+						speaker.Clear()
+						break MainLoop
 
-				case "q":
-					fmt.Println("Saindo........")
-					break_for = true
-					end = true
-				
-				// case if the user press enter with nothing writed
-        		case "":    
-        		    continue
-					
-        		default:
-        		    fmt.Printf("Comando '%s' não reconhecido\n", resp)
+					case "q":
+						end = true
+						break MainLoop
         		}
-				
 		}
-
-		if(break_for) {break}
 	}
 
 	if (!next_song){
@@ -244,6 +171,27 @@ func (ap *AudioPlayer) Play(path_song string) (imm int, end bool ){
 	}  
 
 	return
+}
+
+func (ap *AudioPlayer) TogglePause(){
+	speaker.Lock()
+	ap.Ctrl.Paused = !ap.Ctrl.Paused
+	speaker.Unlock()
+}
+
+func(ap *AudioPlayer) AddVolume(value float64) {
+	speaker.Lock()
+	newVolume := ap.Volume.Volume + value
+	if newVolume <= 3 && newVolume >= -5 {
+		ap.Volume.Volume = newVolume
+	}
+	speaker.Unlock()
+}
+
+func(ap *AudioPlayer) ToggleMute() {
+	speaker.Lock()
+	ap.Volume.Silent = !ap.Volume.Silent
+	speaker.Unlock()
 }
 
 // method: plays the playlist in order of songs
@@ -288,11 +236,3 @@ func (ap *AudioPlayer) PlayShuffle(playlist []Musica) {
 	}
 }
 
-// method: starts the Goroutine of input reading
-func (ap *AudioPlayer) StartInputListener() {
-    go func() {
-        for ap.Scanner.Scan() {
-            ap.InputChan <- strings.TrimSpace(ap.Scanner.Text())
-        }
-    }()
-}
