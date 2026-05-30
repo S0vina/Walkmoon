@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 	"math/rand"
+	
 
 	"github.com/gopxl/beep/v2"
 	"github.com/gopxl/beep/v2/mp3"
@@ -26,6 +27,9 @@ type AudioPlayer struct{
 	SampleRate beep.SampleRate
 	Ctrl       *beep.Ctrl
 	Volume     *effects.Volume
+	CurrentIndex int
+	LoopPlaylist bool
+	LoopSong	bool
 	InputChan 	chan string
 }
 
@@ -44,12 +48,19 @@ func New() (ap *AudioPlayer, err error){
 
 	inputChan := make(chan string, 1)
 
+	CurrentIndex := 0
+
+	loopPlaylist := true
+	loopSong := false
 	speaker.Init(sr, sr.N(time.Second/10))
 
 	ap = &AudioPlayer{
 		SampleRate: sr,
 		Ctrl: 		ctrl,
 		Volume:     volume,
+		CurrentIndex: CurrentIndex,
+		LoopPlaylist: loopPlaylist,
+		LoopSong: loopSong,
 		InputChan: 	inputChan,
 	}
 
@@ -120,7 +131,7 @@ func (ap *AudioPlayer) Play(path_song string) (imm int, end bool ){
 
 	if format.SampleRate != ap.SampleRate {
 		beep.Resample(3, format.SampleRate, ap.SampleRate, streamer)
-		print("Speaker resampled in %d hz", format.SampleRate.N)
+		// !!! log.Println("Speaker resampled in %d hz", format.SampleRate.N) LOOK THIS AFTER. IS NOT RESSAMPLING GOOD
 	} 
 
 	speaker.Lock()
@@ -196,43 +207,96 @@ func(ap *AudioPlayer) ToggleMute() {
 
 // method: plays the playlist in order of songs
 func (ap *AudioPlayer) PlaySequencial(playlist []Musica) {
-	count := 0
-
-	for count < len(playlist){
-		song := playlist[count]
+	SequencialLoop:
+	for ap.CurrentIndex < len(playlist){
+		song := playlist[ap.CurrentIndex]
+		count := 0
 
 		imm, end := ap.Play(song.Path)
 		if end {
 			return
 		}
-		count += imm
+
+		count += ap.CurrentIndex + imm
+
+		// if the user loops in reverse the playlist
+		if count < 0 {
+			ap.CurrentIndex = len(playlist) - 1
+			continue SequencialLoop
+		}
+
+		// if the playlist ends and loopplaylist is on
+		if count > len(playlist) - 1 && ap.LoopPlaylist {
+			ap.CurrentIndex = 0
+			continue SequencialLoop
+		} 
+		// if playlist ends and no LoopPlaylist set
+		if count > len(playlist) - 1 && !ap.LoopPlaylist {
+			return
+		}
+
+		ap.CurrentIndex = count
+
+		// log.Println(ap.CurrentIndex)
 	}
 }
 
 // method: plays the playlist in random mode
 func (ap *AudioPlayer) PlayShuffle(playlist []Musica) {
-	count := 0
-	var played_songs[] int 
-
-	for {
-		// generate a random number for choose the next song
-		var num int = rand.Intn(len(playlist))
-
-		// trying to implement a queue of songs played
-		// create a flag last_song. If it's true, than take the last number of the queue
-		// and play that song. Make last_song false. And assim sucessivamente. 
-		if len(played_songs) < 49 {
-			played_songs = append(played_songs, num)
-		}
-
-		song := playlist[num]
+	shuffleList := GenerateShuffle(playlist)
+	//log.Println(shuffleList)
+	ShuffleLoop:
+	for ap.CurrentIndex < len(shuffleList){
+		song := shuffleList[ap.CurrentIndex]
+		count := 0
 
 		imm, end := ap.Play(song.Path)
 		if end {
 			return
 		}
 
-		count += imm
+		count += ap.CurrentIndex + imm
+
+		// if the user loops in reverse the playlist
+		if count < 0 {
+			ap.CurrentIndex = len(shuffleList) - 1
+			continue ShuffleLoop
+		}
+
+		// if the playlist ends and loopplaylist is on
+		if count > len(shuffleList) - 1 && ap.LoopPlaylist {
+			ap.CurrentIndex = 0
+			continue ShuffleLoop
+		} 
+		// if playlist ends and no LoopPlaylist set
+		if count > len(shuffleList) - 1 && !ap.LoopPlaylist {
+			return
+		}
+
+		ap.CurrentIndex = count
+
+		//log.Println(song.Id)
 	}
 }
 
+func GenerateShuffle(playlist []Musica) (shuffleList []Musica){
+	// Cria uma cópia para não modificar a playlist original
+	shuffleList = make([]Musica, len(playlist))
+	copy(shuffleList, playlist)
+
+	// Algoritmo de Fisher-Yates
+	for i := len(shuffleList) - 1; i > 0; i-- {
+		// Sorteia um índice entre 0 e i
+		j := rand.Intn(i + 1)
+		
+		// Troca os elementos de lugar (Go faz isso em uma linha!)
+		shuffleList[i], shuffleList[j] = shuffleList[j], shuffleList[i]
+	}
+
+	return shuffleList
+}
+
+// method: Changes the loopPlaylist bool value
+// func (ap *AudioPlayer) ToggleLoopPlaylist() {
+// 	ap.LoopPlaylist = !ap.LoopPlaylist
+// }
