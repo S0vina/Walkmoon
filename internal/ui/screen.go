@@ -2,11 +2,34 @@ package ui
 
 import (
 	"fmt"
+	"path/filepath"
+	"time"
+
+	"github.com/S0vina/walkmoon/internal/audio"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/S0vina/walkmoon/internal/audio" 
+	"github.com/charmbracelet/lipgloss"
 )
 
-// ponteiro do audio player.
+var (
+		estiloBase = lipgloss.NewStyle().
+		Padding(1, 3).
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("#874BFD"))
+
+		estiloTitulo = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#FAFAFA")).
+		Background(lipgloss.Color("#7D56F4")).
+		Bold(true).
+		Padding(0, 1)
+
+		estiloMusica = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#04B575")).
+		Bold(true)
+
+		estiloComando = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#626262"))
+)
+
 type Model struct {
 	player *audio.AudioPlayer
 }
@@ -17,12 +40,24 @@ func New(p *audio.AudioPlayer) Model {
 	}
 }
 
+type tickMsg time.Time
+
+func doTick() tea.Cmd {
+	return tea.Tick(time.Millisecond*100, func(t time.Time) tea.Msg {
+		return tickMsg(t)
+	})
+}
+
 func (m Model) Init() tea.Cmd {
-	return nil
+	return doTick()
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+
+	case tickMsg:
+		return m, doTick()
+
 	case tea.KeyMsg:
 		tecla := msg.String()
 
@@ -39,7 +74,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.player.AddVolume(-0.5)
 		case "m":
 			m.player.ToggleMute()
-		case "l", "j":
+		case "l":
+			m.player.CurrentSong = "Carregando próxima..."
+			m.player.InputChan <- tecla
+		case "j":
+			m.player.CurrentSong = "Carregando anterior..."
 			m.player.InputChan <- tecla
 		}	
 	}
@@ -47,20 +86,38 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
-	s := "\n  WALKMOON - Interface Terminal\n\n"
-	
-	if m.player.Ctrl.Paused {
-		s += "  estado: [▶ PAUSADO]\n"
-	} else {
-		s += "  estado: [⏸ TOCANDO]\n"
-	}
+	titulo := estiloTitulo.Render("WALKMOON")
 
-	s += fmt.Sprintf("  volume: %.1f\n", m.player.Volume.Volume)
-	
-	s += "\n  comandos:\n"
-	s += "  [p] play/pause  |  [+]/[-] volume\n"
-	s += "  [m] mute        |  [l]/[j] pular/voltar\n"
-	s += "  [q] sair\n"
-	
-	return s
+	musicName := filepath.Base(m.player.CurrentSong)
+	if musicName == "." || musicName == "" {
+		musicName = "Carregando a fita..."
+	}
+	musicaRenderizada := estiloMusica.Render(musicName)
+
+	estadoStr := "⏸ TOCANDO "
+	corEstado := "#04B575" // verde
+
+	if m.player.Ctrl.Paused {
+		estadoStr = "▶ PAUSADO "
+		corEstado = "#FF0000" // vermelho
+	}
+	estadoRenderizado := lipgloss.NewStyle().Foreground(lipgloss.Color(corEstado)).Bold(true).Render(estadoStr)
+
+	linhaPrincipal := fmt.Sprintf("%s %s", estadoRenderizado, musicaRenderizada)
+
+	// volume e status
+	mutado := ""
+	if m.player.Volume.Silent {
+		mutado = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF0000")).Render(" [MUTADO]")
+	}
+	linhaStatus := fmt.Sprintf("volume: %.1f%s", m.player.Volume.Volume, mutado)
+
+	// rodapé de atalhos
+	comandos := estiloComando.Render("[p] play  •  [l]/[j] pular  •  [+]/[-] vol  •  [m] mute  •  [q] sair")
+
+	// monta tudo pulando linhas
+	uiLivre := fmt.Sprintf("%s\n\n%s\n%s\n\n%s", titulo, linhaPrincipal, linhaStatus, comandos)
+
+	// envelopa tudo dentro da borda arredondada e joga na tela
+	return estiloBase.Render(uiLivre)
 }
