@@ -27,6 +27,7 @@ type AudioPlayer struct{
 	Ctrl       *beep.Ctrl
 	Volume     *effects.Volume
 	InputChan 	chan string
+	CurrentSong string
 }
 
 // method: creates a new audioPlayer
@@ -201,6 +202,7 @@ func (ap *AudioPlayer) PlaySequencial(playlist []Musica) {
 	for count < len(playlist){
 		song := playlist[count]
 
+		ap.CurrentSong = song.Path
 		imm, end := ap.Play(song.Path)
 		if end {
 			return
