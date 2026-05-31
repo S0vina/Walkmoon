@@ -11,23 +11,23 @@ import (
 )
 
 var (
-		estiloBase = lipgloss.NewStyle().
-		Padding(1, 3).
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#874BFD"))
+	estiloBase = lipgloss.NewStyle().
+			Padding(1, 3).
+			BorderStyle(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("#874BFD"))
 
-		estiloTitulo = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FAFAFA")).
-		Background(lipgloss.Color("#7D56F4")).
-		Bold(true).
-		Padding(0, 1)
+	estiloTitulo = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#FAFAFA")).
+			Background(lipgloss.Color("#7D56F4")).
+			Bold(true).
+			Padding(0, 1)
 
-		estiloMusica = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#04B575")).
-		Bold(true)
+	estiloMusica = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#04B575")).
+			Bold(true)
 
-		estiloComando = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#626262"))
+	estiloComando = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#626262"))
 )
 
 type Model struct {
@@ -66,7 +66,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "q", "ctrl+c":
 			m.player.InputChan <- "q"
 			return m, tea.Quit
-		case "p":
+		case " ":
 			m.player.TogglePause()
 		case "+":
 			m.player.AddVolume(0.5)
@@ -74,13 +74,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.player.AddVolume(-0.5)
 		case "m":
 			m.player.ToggleMute()
-		case "l":
+		case "n":
 			m.player.CurrentSong = "Carregando próxima..."
 			m.player.InputChan <- tecla
-		case "j":
+		case "p":
 			m.player.CurrentSong = "Carregando anterior..."
 			m.player.InputChan <- tecla
-		}	
+		case "s":
+			m.player.InputChan <- tecla
+		}
+
 	}
 	return m, nil
 }
@@ -113,7 +116,7 @@ func (m Model) View() string {
 	linhaStatus := fmt.Sprintf("volume: %.1f%s", m.player.Volume.Volume, mutado)
 
 	// rodapé de atalhos
-	comandos := estiloComando.Render("[p] play  •  [l]/[j] pular  •  [+]/[-] vol  •  [m] mute  •  [q] sair")
+	comandos := estiloComando.Render("[space] play  •  [p]/[n] pular  •  [+]/[-] vol  •  [m] mute  • [s]shuffle • [q] sair")
 
 	// monta tudo pulando linhas
 	uiLivre := fmt.Sprintf("%s\n\n%s\n%s\n\n%s", titulo, linhaPrincipal, linhaStatus, comandos)

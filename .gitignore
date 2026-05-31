@@ -1,0 +1,39 @@
+# === Binários e Executáveis ===
+# Bloqueia os executáveis gerados no Windows e Linux
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+walkmoon
+player
+
+# === Arquivos de Build e Temporários do Go ===
+# Caso você use o diretório local para cache ou logs de profiling
+/debug
+/dist
+*.test
+*.prof
+
+# === Configurações de IDEs / Editores ===
+# Se usar VS Code, GoLand ou editores baseados em terminal (Vim/Neovim)
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+*~
+.DS_Store
+
+# === Scripts de Automação Local ===
+# Scripts locais de execução/build que você não queira subir para o GitHub
+run.ps1
+run.sh
+
+# === Mídias e Assets (Opcional) ===
+# Se você quiser testar com músicas locais sem enviá-las para o repositório,
+# descomente a linha abaixo. Mantenha apenas os assets padrões do projeto.
+# assets/music/*
+# !assets/music/.gitkeep

@@ -116,6 +116,97 @@ func (ap *AudioPlayer) ScanFolder(root string) (playlist []Musica, err error) {
 // 	speaker.Unlock()
 // }
 
+// method: run audioPlayer
+func (ap *AudioPlayer) Run(playlist []Musica) {
+	var queue []Musica
+	var shuffleList []Musica
+
+	queue = playlist
+RunLoop:
+	for ap.CurrentIndex < len(queue) {
+		song := queue[ap.CurrentIndex]
+		count := 0
+
+		ap.CurrentSong = song.Path
+		imm, end := ap.Play(song.Path)
+		if end {
+			return
+		}
+
+		count += ap.CurrentIndex + imm
+
+		// if playlist ends and no LoopPlaylist set
+		if count > len(queue)-1 && !ap.LoopPlaylist {
+			return
+		}
+
+		// if playshuffle and shufflelist is not initiated
+		if ap.PlayShuffle && len(shuffleList) == 0 {
+			shuffleList = GenerateShuffle(playlist)
+
+			// assuming that queue is now, plalylist
+			musicaAtual := queue[ap.CurrentIndex]
+
+			// Se, por azar a primeira música do Shuffle for a mesma que está tocando agora
+			if len(shuffleList) > 1 && shuffleList[0] == musicaAtual {
+				// Rotaciona a lista e joga a primeira música para o final
+				primeira := shuffleList[0]
+				shuffleList = append(shuffleList[1:], primeira)
+			}
+
+			queue = shuffleList
+			ap.CurrentIndex = 0
+			continue RunLoop
+		}
+
+		// if sequencial mode is on and shuffleMode was on before
+		if !ap.PlayShuffle && len(shuffleList) > 0 {
+
+			currentSong := shuffleList[ap.CurrentIndex]
+			aux := currentSong.Id + imm
+
+			shuffleList = nil
+
+			queue = playlist
+			ap.CurrentIndex = ap.updateSong(aux, queue)
+			continue RunLoop
+		}
+
+		ap.CurrentIndex = ap.updateSong(count, queue)
+
+		// log.Println(ap.PlayShuffle)
+	}
+}
+
+func (ap *AudioPlayer) updateSong(count int, queue []Musica) (nextSongIndex int) {
+	totalMusicas := len(queue)
+	if totalMusicas == 0 {
+		return 0
+	}
+
+	// Trata o comportamento ao voltar (count < 0)
+	if count < 0 {
+		if ap.LoopPlaylist {
+			// Se tem loop, dá a volta e vai para a última música
+			return totalMusicas - 1
+		}
+		// Se nao tem loop
+		return 0
+	}
+
+	// Trata o comportamento se avançar além do fim da playlist
+	if count >= totalMusicas {
+		if ap.LoopPlaylist {
+			// Se tem loop, volta para a primeira música
+			return 0
+		}
+		// Se NÃO tem loop, trava na última música para evitar dar panic no slice
+		return totalMusicas - 1
+	}
+
+	return count
+}
+
 func (ap *AudioPlayer) Play(path_song string) (imm int, end bool) {
 	// f = a path for a song
 	end = false
@@ -164,16 +255,19 @@ MainLoop:
 			// Switch case for player manipulation
 			switch resp {
 			// jump for the previous song
-			case "j":
+			case "p":
 				next_song = false
 				speaker.Clear()
 				break MainLoop
 
 			// jump for the next song
-			case "l":
+			case "n":
 				next_song = true
 				speaker.Clear()
 				break MainLoop
+
+			case "s":
+				ap.PlayShuffle = !ap.PlayShuffle
 
 			case "q":
 				end = true
@@ -208,52 +302,6 @@ func (ap *AudioPlayer) ToggleMute() {
 	speaker.Lock()
 	ap.Volume.Silent = !ap.Volume.Silent
 	speaker.Unlock()
-}
-
-// method: run audioPlayer
-func (ap *AudioPlayer) Run(playlist []Musica) {
-	var queue []Musica
-
-	if ap.PlayShuffle {
-		shuffleList := GenerateShuffle(playlist)
-		queue = shuffleList
-	} else {
-		queue = playlist
-	}
-
-RunLoop:
-	for ap.CurrentIndex < len(queue) {
-		song := queue[ap.CurrentIndex]
-		count := 0
-
-		ap.CurrentSong = song.Path
-		imm, end := ap.Play(song.Path)
-		if end {
-			return
-		}
-
-		count += ap.CurrentIndex + imm
-
-		// if the user loops in reverse the playlist
-		if count < 0 {
-			ap.CurrentIndex = len(queue) - 1
-			continue RunLoop
-		}
-
-		// if the playlist ends and loopplaylist is on
-		if count > len(queue)-1 && ap.LoopPlaylist {
-			ap.CurrentIndex = 0
-			continue RunLoop
-		}
-		// if playlist ends and no LoopPlaylist set
-		if count > len(queue)-1 && !ap.LoopPlaylist {
-			return
-		}
-
-		ap.CurrentIndex = count
-
-		// log.Println(ap.CurrentIndex)
-	}
 }
 
 func GenerateShuffle(playlist []Musica) (shuffleList []Musica) {
