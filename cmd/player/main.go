@@ -1,10 +1,10 @@
 package main
 
 import (
-	"strconv"
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 
 	"github.com/S0vina/walkmoon/internal/audio"
 	"github.com/S0vina/walkmoon/internal/ui"
@@ -31,19 +31,19 @@ func main() {
 		log.Fatal(errMode)
 	}
 
-	ap, errNewAP := audio.New() 
+	ap, errNewAP := audio.New()
 	if errNewAP != nil {
 		log.Fatal(errNewAP)
 	}
 
 	// songs = [archives], err = any error
-	playlist, errScan := ap.ScanFolder(folderPath)	
+	playlist, errScan := ap.ScanFolder(folderPath)
 
 	// if ocurre some error in scanFolder func
 	if errScan != nil {
 		log.Fatal(errScan)
 	}
-	
+
 	// if folder with no songs, break the program
 	if len(playlist) == 0 {
 		fmt.Println("No songs founded.")
@@ -54,8 +54,8 @@ func main() {
 	go func() {
 		if mode == 0 {
 			ap.PlaySequencial(playlist)
-		
-		}else {
+
+		} else {
 			ap.PlayShuffle(playlist)
 		}
 	}()
