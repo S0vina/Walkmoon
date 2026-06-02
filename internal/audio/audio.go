@@ -14,6 +14,7 @@ import (
 	"github.com/gopxl/beep/v2/mp3"
 	"github.com/gopxl/beep/v2/speaker"
 	"github.com/gopxl/beep/effects"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 // struct: stores path and id(id stands for music number on the playlist)
@@ -25,14 +26,17 @@ type Musica struct{
 // Centralizes all components that perdure in AudioPlayer Execution
 type AudioPlayer struct{
 	SampleRate beep.SampleRate
-	Ctrl       *beep.Ctrl
-	Volume     *effects.Volume
-	CurrentIndex int
-	LoopPlaylist bool
-	LoopSong	bool
-	InputChan 	chan string
-	CurrentSong string
+	Ctrl       		*beep.Ctrl
+	Volume     		*effects.Volume
+	CurrentIndex 	int
+	LoopPlaylist 	bool
+	LoopSong		bool
+	InputChan 		chan string
+	EventChan		chan tea.Msg
+	CurrentSong 	Musica
 }
+
+type SongChanged struct{ Song Musica }
 
 // method: creates a new audioPlayer
 func New() (ap *AudioPlayer, err error){
@@ -48,6 +52,7 @@ func New() (ap *AudioPlayer, err error){
 	}
 
 	inputChan := make(chan string, 1)
+	eventChan := make(chan tea.Msg, 5)
 
 	CurrentIndex := 0
 
@@ -56,13 +61,14 @@ func New() (ap *AudioPlayer, err error){
 	speaker.Init(sr, sr.N(time.Second/10))
 
 	ap = &AudioPlayer{
-		SampleRate: sr,
-		Ctrl: 		ctrl,
-		Volume:     volume,
-		CurrentIndex: CurrentIndex,
-		LoopPlaylist: loopPlaylist,
-		LoopSong: loopSong,
-		InputChan: 	inputChan,
+		SampleRate: 	sr,
+		Ctrl: 			ctrl,
+		Volume:     	volume,
+		CurrentIndex: 	CurrentIndex,
+		LoopPlaylist: 	loopPlaylist,
+		LoopSong: 		loopSong,
+		InputChan: 		inputChan,
+		EventChan:		eventChan,
 	}
 
 	err = nil
@@ -210,11 +216,12 @@ func(ap *AudioPlayer) ToggleMute() {
 func (ap *AudioPlayer) PlaySequencial(playlist []Musica) {
 	SequencialLoop:
 	for ap.CurrentIndex < len(playlist){
-		song := playlist[ap.CurrentIndex]
+		ap.CurrentSong = playlist[ap.CurrentIndex]
 		count := 0
 
-		ap.CurrentSong = song.Path
-		imm, end := ap.Play(song.Path)
+		ap.EventChan <- SongChanged{Song: ap.CurrentSong}
+
+		imm, end := ap.Play(ap.CurrentSong.Path)
 		if end {
 			return
 		}
@@ -238,8 +245,6 @@ func (ap *AudioPlayer) PlaySequencial(playlist []Musica) {
 		}
 
 		ap.CurrentIndex = count
-
-		// log.Println(ap.CurrentIndex)
 	}
 }
 
@@ -249,10 +254,11 @@ func (ap *AudioPlayer) PlayShuffle(playlist []Musica) {
 	//log.Println(shuffleList)
 	ShuffleLoop:
 	for ap.CurrentIndex < len(shuffleList){
-		song := shuffleList[ap.CurrentIndex]
+		ap.CurrentSong = shuffleList[ap.CurrentIndex]
 		count := 0
 
-		imm, end := ap.Play(song.Path)
+		ap.EventChan <- SongChanged{Song: ap.CurrentSong}
+		imm, end := ap.Play(ap.CurrentSong.Path)
 		if end {
 			return
 		}
@@ -276,8 +282,6 @@ func (ap *AudioPlayer) PlayShuffle(playlist []Musica) {
 		}
 
 		ap.CurrentIndex = count
-
-		//log.Println(song.Id)
 	}
 }
 

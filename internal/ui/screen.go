@@ -3,11 +3,12 @@ package ui
 import (
 	"fmt"
 	"path/filepath"
-	"time"
+	"os"
 
 	"github.com/S0vina/walkmoon/internal/audio"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/bubbles/filepicker"
 )
 
 var (
@@ -31,32 +32,42 @@ var (
 )
 
 type Model struct {
-	player *audio.AudioPlayer
+	player 			*audio.AudioPlayer
+	CurrentSong 	audio.Musica
+	filepicker		filepicker.Model
 }
 
 func New(p *audio.AudioPlayer) Model {
+	fp := filepicker.New()
+	fp.Height = 10
+	fp.CurrentDirectory, _ = os.UserHomeDir()
+
 	return Model{
 		player: p,
+		filepicker: fp,
 	}
 }
 
-type tickMsg time.Time
-
-func doTick() tea.Cmd {
-	return tea.Tick(time.Millisecond*100, func(t time.Time) tea.Msg {
-		return tickMsg(t)
-	})
+func EventListening(ch chan tea.Msg) tea.Cmd {
+	return func() tea.Msg {
+		return <- ch
+	}
 }
 
 func (m Model) Init() tea.Cmd {
-	return doTick()
+	return tea.Batch(
+		EventListening(m.player.EventChan),
+		m.filepicker.Init(),
+	)
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
 	switch msg := msg.(type) {
 
-	case tickMsg:
-		return m, doTick()
+	case audio.SongChanged:
+		m.CurrentSong = msg.Song
+		return m, EventListening(m.player.EventChan)
 
 	case tea.KeyMsg:
 		tecla := msg.String()
@@ -75,20 +86,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "m":
 			m.player.ToggleMute()
 		case "l":
-			m.player.CurrentSong = "Carregando próxima..."
 			m.player.InputChan <- tecla
 		case "j":
-			m.player.CurrentSong = "Carregando anterior..."
 			m.player.InputChan <- tecla
 		}	
 	}
-	return m, nil
+	m.filepicker, cmd = m.filepicker.Update(msg)
+	return m, cmd
 }
 
 func (m Model) View() string {
 	titulo := estiloTitulo.Render("WALKMOON")
 
-	musicName := filepath.Base(m.player.CurrentSong)
+	musicName := filepath.Base(m.CurrentSong.Path)
 	if musicName == "." || musicName == "" {
 		musicName = "Carregando a fita..."
 	}
