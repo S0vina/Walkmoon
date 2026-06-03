@@ -36,11 +36,12 @@ type AudioPlayer struct {
 	LoopSong     bool
 	PlayShuffle  bool
 	InputChan    chan string
-  EventChan    chan tea.Msg
-	CurrentSong  string
+	EventChan    chan tea.Msg
+	CurrentSong  Musica
 }
 
 type SongChanged struct{ Song Musica }
+type ShuffleState struct {}
 
 // method: creates a new audioPlayer
 func New() (ap *AudioPlayer, err error) {
@@ -74,7 +75,7 @@ func New() (ap *AudioPlayer, err error) {
 		LoopSong:     loopSong,
 		PlayShuffle:  playShuffle,
 		InputChan:    inputChan,
-    EventChan:		eventChan,
+    	EventChan:		eventChan,
 	}
 
 	err = nil
@@ -130,11 +131,11 @@ func (ap *AudioPlayer) Run(playlist []Musica) {
 	queue = playlist
 RunLoop:
 	for ap.CurrentIndex < len(queue) {
-		song := queue[ap.CurrentIndex]
+		ap.CurrentSong = queue[ap.CurrentIndex]
 		count := 0
 
-		ap.CurrentSong = song.Path
-		imm, end := ap.Play(song.Path)
+		ap.EventChan <- SongChanged{Song: ap.CurrentSong} 
+		imm, end := ap.Play(ap.CurrentSong.Path)
 		if end {
 			return
 		}
@@ -274,6 +275,7 @@ MainLoop:
 
 			case "s":
 				ap.PlayShuffle = !ap.PlayShuffle
+				ap.EventChan <- ShuffleState{}
 
 			case "q":
 				end = true
