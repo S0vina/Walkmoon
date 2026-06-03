@@ -21,16 +21,6 @@ func main() {
 	// path of the folder with the musics
 	folderPath := os.Args[1]
 
-	ModeStr := "0"
-	if len(os.Args) >= 3 {
-		ModeStr = os.Args[2]
-	}
-
-	mode, errMode := strconv.Atoi(ModeStr)
-	if errMode != nil {
-		log.Fatal(errMode)
-	}
-
 	ap, errNewAP := audio.New()
 	if errNewAP != nil {
 		log.Fatal(errNewAP)
@@ -52,12 +42,7 @@ func main() {
 
 	// for loop that play n songs of the folder
 	go func() {
-		if mode == 0 {
-			ap.PlaySequencial(playlist)
-
-		} else {
-			ap.PlayShuffle(playlist)
-		}
+		ap.Run(playlist)
 	}()
 
 	telaInicial := ui.New(ap)
