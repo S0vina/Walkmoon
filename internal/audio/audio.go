@@ -3,48 +3,52 @@ package audio
 // imports
 import (
 	"log"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
-	"math/rand"
-	
 
+	"github.com/gopxl/beep/effects"
 	"github.com/gopxl/beep/v2"
 	"github.com/gopxl/beep/v2/mp3"
 	"github.com/gopxl/beep/v2/speaker"
-	"github.com/gopxl/beep/effects"
 )
 
 // struct: stores path and id(id stands for music number on the playlist)
-type Musica struct{
-	Id int
-	Path string
+type Musica struct {
+	Id     int
+	Path   string
+	Title  string
+	Artist string
+	Album  string
+	Genre  string
 }
 
 // Centralizes all components that perdure in AudioPlayer Execution
-type AudioPlayer struct{
-	SampleRate beep.SampleRate
-	Ctrl       *beep.Ctrl
-	Volume     *effects.Volume
+type AudioPlayer struct {
+	SampleRate   beep.SampleRate
+	Ctrl         *beep.Ctrl
+	Volume       *effects.Volume
 	CurrentIndex int
 	LoopPlaylist bool
-	LoopSong	bool
-	InputChan 	chan string
-	CurrentSong string
+	LoopSong     bool
+	PlayShuffle  bool
+	InputChan    chan string
+	CurrentSong  string
 }
 
 // method: creates a new audioPlayer
-func New() (ap *AudioPlayer, err error){
+func New() (ap *AudioPlayer, err error) {
 	sr := beep.SampleRate(44100)
 
 	ctrl := &beep.Ctrl{Paused: false}
 
 	volume := &effects.Volume{
 		Streamer: ctrl,
-		Base: 2,
-		Volume: 0,
-		Silent: false,
+		Base:     2,
+		Volume:   -1,
+		Silent:   false,
 	}
 
 	inputChan := make(chan string, 1)
@@ -53,16 +57,18 @@ func New() (ap *AudioPlayer, err error){
 
 	loopPlaylist := true
 	loopSong := false
+	playShuffle := false
 	speaker.Init(sr, sr.N(time.Second/10))
 
 	ap = &AudioPlayer{
-		SampleRate: sr,
-		Ctrl: 		ctrl,
-		Volume:     volume,
+		SampleRate:   sr,
+		Ctrl:         ctrl,
+		Volume:       volume,
 		CurrentIndex: CurrentIndex,
 		LoopPlaylist: loopPlaylist,
-		LoopSong: loopSong,
-		InputChan: 	inputChan,
+		LoopSong:     loopSong,
+		PlayShuffle:  playShuffle,
+		InputChan:    inputChan,
 	}
 
 	err = nil
@@ -83,7 +89,7 @@ func (ap *AudioPlayer) ScanFolder(root string) (playlist []Musica, err error) {
 		// Filtra apenas arquivos .mp3 (case-insensitive)
 		if !info.IsDir() && strings.HasSuffix(strings.ToLower(info.Name()), ".mp3") {
 			musica := Musica{Id: contador, Path: path}
-			
+
 			playlist = append(playlist, musica)
 			contador++
 
@@ -100,18 +106,108 @@ func (ap *AudioPlayer) ScanFolder(root string) (playlist []Musica, err error) {
 
 // }
 
-// Logica de contagem de tempo 
-		// select {
-		// case <-done:
-		// 	return
-		// case <-time.After(time.Second):
-		// 	speaker.Lock()
-		// 	fmt.Println(format.SampleRate.D(streamer.Position()).Round(time.Second))
-		// 	speaker.Unlock()
-		// }
-    
+// Logica de contagem de tempo
+// select {
+// case <-done:
+// 	return
+// case <-time.After(time.Second):
+// 	speaker.Lock()
+// 	fmt.Println(format.SampleRate.D(streamer.Position()).Round(time.Second))
+// 	speaker.Unlock()
+// }
 
-func (ap *AudioPlayer) Play(path_song string) (imm int, end bool ){
+// method: run audioPlayer
+func (ap *AudioPlayer) Run(playlist []Musica) {
+	var queue []Musica
+	var shuffleList []Musica
+
+	queue = playlist
+RunLoop:
+	for ap.CurrentIndex < len(queue) {
+		song := queue[ap.CurrentIndex]
+		count := 0
+
+		ap.CurrentSong = song.Path
+		imm, end := ap.Play(song.Path)
+		if end {
+			return
+		}
+
+		count += ap.CurrentIndex + imm
+
+		// if playlist ends and no LoopPlaylist set
+		if count > len(queue)-1 && !ap.LoopPlaylist {
+			return
+		}
+
+		// if playshuffle and shufflelist is not initiated
+		if ap.PlayShuffle && len(shuffleList) == 0 {
+			shuffleList = GenerateShuffle(playlist)
+
+			// assuming that queue is now, plalylist
+			musicaAtual := queue[ap.CurrentIndex]
+
+			// Se, por azar a primeira música do Shuffle for a mesma que está tocando agora
+			if len(shuffleList) > 1 && shuffleList[0] == musicaAtual {
+				// Rotaciona a lista e joga a primeira música para o final
+				primeira := shuffleList[0]
+				shuffleList = append(shuffleList[1:], primeira)
+			}
+
+			queue = shuffleList
+			ap.CurrentIndex = 0
+			continue RunLoop
+		}
+
+		// if sequencial mode is on and shuffleMode was on before
+		if !ap.PlayShuffle && len(shuffleList) > 0 {
+
+			currentSong := shuffleList[ap.CurrentIndex]
+			aux := currentSong.Id + imm
+
+			shuffleList = nil
+
+			queue = playlist
+			ap.CurrentIndex = ap.updateSong(aux, queue)
+			continue RunLoop
+		}
+
+		ap.CurrentIndex = ap.updateSong(count, queue)
+
+		// log.Println(ap.PlayShuffle)
+	}
+}
+
+func (ap *AudioPlayer) updateSong(count int, queue []Musica) (nextSongIndex int) {
+	totalMusicas := len(queue)
+	if totalMusicas == 0 {
+		return 0
+	}
+
+	// Trata o comportamento ao voltar (count < 0)
+	if count < 0 {
+		if ap.LoopPlaylist {
+			// Se tem loop, dá a volta e vai para a última música
+			return totalMusicas - 1
+		}
+		// Se nao tem loop
+		return 0
+	}
+
+	// Trata o comportamento se avançar além do fim da playlist
+	if count >= totalMusicas {
+		if ap.LoopPlaylist {
+			// Se tem loop, volta para a primeira música
+			return 0
+		}
+		// Se NÃO tem loop, trava na última música para evitar dar panic no slice
+		return totalMusicas - 1
+	}
+
+	return count
+}
+
+func (ap *AudioPlayer) Play(path_song string) (imm int, end bool) {
 	// f = a path for a song
 	end = false
 	imm = 1
@@ -133,7 +229,7 @@ func (ap *AudioPlayer) Play(path_song string) (imm int, end bool ){
 	if format.SampleRate != ap.SampleRate {
 		beep.Resample(3, format.SampleRate, ap.SampleRate, streamer)
 		// !!! log.Println("Speaker resampled in %d hz", format.SampleRate.N) LOOK THIS AFTER. IS NOT RESSAMPLING GOOD
-	} 
+	}
 
 	speaker.Lock()
 	ap.SampleRate = format.SampleRate
@@ -143,55 +239,57 @@ func (ap *AudioPlayer) Play(path_song string) (imm int, end bool ){
 	// trigger for the end of the function if the speaker.Play ends
 	done := make(chan bool, 1) // arg "1" allows a channel with buffer
 
-	
 	speaker.Play(beep.Seq(ap.Volume, beep.Callback(func() {
 		done <- true
 	})))
 
 	next_song := true
 
-	MainLoop:
-	for {	
+MainLoop:
+	for {
 		select {
-			case <-done:	
-				return 
+		case <-done:
+			return
 
-			case resp := <-ap.InputChan: 
-				// Switch case for player manipulation 
-        		switch resp {		
-					// jump for the previous song
-					case "j":
-						next_song = false
-						speaker.Clear()
-						break MainLoop
-					
-					// jump for the next song
-					case "l":
-						next_song = true
-						speaker.Clear()
-						break MainLoop
+		case resp := <-ap.InputChan:
+			// Switch case for player manipulation
+			switch resp {
+			// jump for the previous song
+			case "p":
+				next_song = false
+				speaker.Clear()
+				break MainLoop
 
-					case "q":
-						end = true
-						break MainLoop
-        		}
+			// jump for the next song
+			case "n":
+				next_song = true
+				speaker.Clear()
+				break MainLoop
+
+			case "s":
+				ap.PlayShuffle = !ap.PlayShuffle
+
+			case "q":
+				end = true
+				break MainLoop
+			}
 		}
 	}
 
-	if (!next_song){
+	if !next_song {
 		imm = -1
-	}  
+	}
 
 	return
 }
 
-func (ap *AudioPlayer) TogglePause(){
+func (ap *AudioPlayer) TogglePause() {
 	speaker.Lock()
 	ap.Ctrl.Paused = !ap.Ctrl.Paused
 	speaker.Unlock()
 }
 
-func(ap *AudioPlayer) AddVolume(value float64) {
+func (ap *AudioPlayer) AddVolume(value float64) {
 	speaker.Lock()
 	newVolume := ap.Volume.Volume + value
 	if newVolume <= 3 && newVolume >= -5 {
@@ -200,88 +298,13 @@ func(ap *AudioPlayer) AddVolume(value float64) {
 	speaker.Unlock()
 }
 
-func(ap *AudioPlayer) ToggleMute() {
+func (ap *AudioPlayer) ToggleMute() {
 	speaker.Lock()
 	ap.Volume.Silent = !ap.Volume.Silent
 	speaker.Unlock()
 }
 
-// method: plays the playlist in order of songs
-func (ap *AudioPlayer) PlaySequencial(playlist []Musica) {
-	SequencialLoop:
-	for ap.CurrentIndex < len(playlist){
-		song := playlist[ap.CurrentIndex]
-		count := 0
-
-		ap.CurrentSong = song.Path
-		imm, end := ap.Play(song.Path)
-		if end {
-			return
-		}
-
-		count += ap.CurrentIndex + imm
-
-		// if the user loops in reverse the playlist
-		if count < 0 {
-			ap.CurrentIndex = len(playlist) - 1
-			continue SequencialLoop
-		}
-
-		// if the playlist ends and loopplaylist is on
-		if count > len(playlist) - 1 && ap.LoopPlaylist {
-			ap.CurrentIndex = 0
-			continue SequencialLoop
-		} 
-		// if playlist ends and no LoopPlaylist set
-		if count > len(playlist) - 1 && !ap.LoopPlaylist {
-			return
-		}
-
-		ap.CurrentIndex = count
-
-		// log.Println(ap.CurrentIndex)
-	}
-}
-
-// method: plays the playlist in random mode
-func (ap *AudioPlayer) PlayShuffle(playlist []Musica) {
-	shuffleList := GenerateShuffle(playlist)
-	//log.Println(shuffleList)
-	ShuffleLoop:
-	for ap.CurrentIndex < len(shuffleList){
-		song := shuffleList[ap.CurrentIndex]
-		count := 0
-
-		imm, end := ap.Play(song.Path)
-		if end {
-			return
-		}
-
-		count += ap.CurrentIndex + imm
-
-		// if the user loops in reverse the playlist
-		if count < 0 {
-			ap.CurrentIndex = len(shuffleList) - 1
-			continue ShuffleLoop
-		}
-
-		// if the playlist ends and loopplaylist is on
-		if count > len(shuffleList) - 1 && ap.LoopPlaylist {
-			ap.CurrentIndex = 0
-			continue ShuffleLoop
-		} 
-		// if playlist ends and no LoopPlaylist set
-		if count > len(shuffleList) - 1 && !ap.LoopPlaylist {
-			return
-		}
-
-		ap.CurrentIndex = count
-
-		//log.Println(song.Id)
-	}
-}
-
-func GenerateShuffle(playlist []Musica) (shuffleList []Musica){
+func GenerateShuffle(playlist []Musica) (shuffleList []Musica) {
 	// Cria uma cópia para não modificar a playlist original
 	shuffleList = make([]Musica, len(playlist))
 	copy(shuffleList, playlist)
@@ -290,7 +313,7 @@ func GenerateShuffle(playlist []Musica) (shuffleList []Musica){
 	for i := len(shuffleList) - 1; i > 0; i-- {
 		// Sorteia um índice entre 0 e i
 		j := rand.Intn(i + 1)
-		
+
 		// Troca os elementos de lugar (Go faz isso em uma linha!)
 		shuffleList[i], shuffleList[j] = shuffleList[j], shuffleList[i]
 	}

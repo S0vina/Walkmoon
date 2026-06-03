@@ -1,7 +1,6 @@
 package main
 
 import (
-	"strconv"
 	"fmt"
 	"log"
 	"os"
@@ -21,29 +20,19 @@ func main() {
 	// path of the folder with the musics
 	folderPath := os.Args[1]
 
-	ModeStr := "0"
-	if len(os.Args) >= 3 {
-		ModeStr = os.Args[2]
-	}
-
-	mode, errMode := strconv.Atoi(ModeStr)
-	if errMode != nil {
-		log.Fatal(errMode)
-	}
-
-	ap, errNewAP := audio.New() 
+	ap, errNewAP := audio.New()
 	if errNewAP != nil {
 		log.Fatal(errNewAP)
 	}
 
 	// songs = [archives], err = any error
-	playlist, errScan := ap.ScanFolder(folderPath)	
+	playlist, errScan := ap.ScanFolder(folderPath)
 
 	// if ocurre some error in scanFolder func
 	if errScan != nil {
 		log.Fatal(errScan)
 	}
-	
+
 	// if folder with no songs, break the program
 	if len(playlist) == 0 {
 		fmt.Println("No songs founded.")
@@ -52,12 +41,7 @@ func main() {
 
 	// for loop that play n songs of the folder
 	go func() {
-		if mode == 0 {
-			ap.PlaySequencial(playlist)
-		
-		}else {
-			ap.PlayShuffle(playlist)
-		}
+		ap.Run(playlist)
 	}()
 
 	telaInicial := ui.New(ap)
