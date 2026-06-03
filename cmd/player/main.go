@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strconv"
 
 	"github.com/S0vina/walkmoon/internal/audio"
 	"github.com/S0vina/walkmoon/internal/ui"
