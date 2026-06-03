@@ -34,6 +34,7 @@ var (
 type Model struct {
 	player 			*audio.AudioPlayer
 	CurrentSong 	audio.Musica
+	Shuffle			bool
 	filepicker		filepicker.Model
 }
 
@@ -45,6 +46,7 @@ func New(p *audio.AudioPlayer) Model {
 	return Model{
 		player: p,
 		filepicker: fp,
+		Shuffle: false,
 	}
 }
 
@@ -67,6 +69,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case audio.SongChanged:
 		m.CurrentSong = msg.Song
+		return m, EventListening(m.player.EventChan)
+	case audio.ShuffleState:
+		m.Shuffle = !m.Shuffle
 		return m, EventListening(m.player.EventChan)
 
 	case tea.KeyMsg:
@@ -99,38 +104,75 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
+	// ===== TÍTULO =====
 	titulo := estiloTitulo.Render("WALKMOON")
 
-	musicName := filepath.Base(m.CurrentSong.Path)
-	if musicName == "." || musicName == "" {
-		musicName = "Carregando a fita..."
-	}
-	musicaRenderizada := estiloMusica.Render(musicName)
+	// ===== NOME DA MÚSICA =====
+	nome := filepath.Base(m.CurrentSong.Path)
 
-	estadoStr := "⏸ TOCANDO "
-	corEstado := "#04B575" // verde
+	// fallback se não tiver música carregada
+	if nome == "." || nome == "" {
+		nome = "Carregando a fita..."
+	}
+
+	musica := estiloMusica.Render(nome)
+
+	// ===== ESTADO (PLAY / PAUSE) =====
+	estadoTexto := "⏸ TOCANDO "
+	cor := "#04B575" // verde
 
 	if m.player.Ctrl.Paused {
-		estadoStr = "▶ PAUSADO "
-		corEstado = "#FF0000" // vermelho
+		estadoTexto = "▶ PAUSADO "
+		cor = "#FF0000" // vermelho
 	}
-	estadoRenderizado := lipgloss.NewStyle().Foreground(lipgloss.Color(corEstado)).Bold(true).Render(estadoStr)
 
-	linhaPrincipal := fmt.Sprintf("%s %s", estadoRenderizado, musicaRenderizada)
+	estado := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(cor)).
+		Bold(true).
+		Render(estadoTexto)
 
-	// volume e status
+	// linha principal = estado + nome da música
+	linhaPrincipal := fmt.Sprintf("%s %s", estado, musica)
+
+	// ===== VOLUME =====
 	mutado := ""
+
+	// se estiver mudo, adiciona tag vermelha
 	if m.player.Volume.Silent {
-		mutado = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF0000")).Render(" [MUTADO]")
+		mutado = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#FF0000")).
+			Render(" [MUTADO]")
 	}
-	linhaStatus := fmt.Sprintf("volume: %.1f%s", m.player.Volume.Volume, mutado)
 
-	// rodapé de atalhos
-	comandos := estiloComando.Render("[space] play  •  [p]/[n] pular  •  [+]/[-] vol  •  [m] mute  • [s]shuffle • [q] sair")
+	linhaVolume := fmt.Sprintf("volume: %.1f%s",
+		m.player.Volume.Volume,
+		mutado,
+	)
 
-	// monta tudo pulando linhas
-	uiLivre := fmt.Sprintf("%s\n\n%s\n%s\n\n%s", titulo, linhaPrincipal, linhaStatus, comandos)
+	shuffle := ""
+	if(m.Shuffle){
+		shuffle += "ON"
+	} else {
+		shuffle += "OFF"
+	}
 
-	// envelopa tudo dentro da borda arredondada e joga na tela
-	return estiloBase.Render(uiLivre)
+	linhaShuffle := fmt.Sprintf("SHUFFLE: %s", shuffle)
+
+	// ===== COMANDOS =====
+	comandos := estiloComando.Render(
+		"[space] play  •  [p]/[n] pular  •  [+]/[-] vol  •  [m] mute  • [s] shuffle • [q] sair",
+	)
+
+	// ===== JUNTA TUDO =====
+	conteudo := fmt.Sprintf(
+		"%s\n\n%s\n%s\n%s\n\n%s",
+		titulo,
+		linhaPrincipal,
+		linhaVolume,
+		linhaShuffle,
+		comandos,
+	)
+
+	// aplica borda final
+	return estiloBase.Render(conteudo)
 }
