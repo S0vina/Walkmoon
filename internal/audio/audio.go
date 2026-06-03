@@ -13,6 +13,7 @@ import (
 	"github.com/gopxl/beep/v2"
 	"github.com/gopxl/beep/v2/mp3"
 	"github.com/gopxl/beep/v2/speaker"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 // struct: stores path and id(id stands for music number on the playlist)
@@ -35,8 +36,11 @@ type AudioPlayer struct {
 	LoopSong     bool
 	PlayShuffle  bool
 	InputChan    chan string
+  EventChan    chan tea.Msg
 	CurrentSong  string
 }
+
+type SongChanged struct{ Song Musica }
 
 // method: creates a new audioPlayer
 func New() (ap *AudioPlayer, err error) {
@@ -52,6 +56,7 @@ func New() (ap *AudioPlayer, err error) {
 	}
 
 	inputChan := make(chan string, 1)
+	eventChan := make(chan tea.Msg, 5)
 
 	CurrentIndex := 0
 
@@ -69,6 +74,7 @@ func New() (ap *AudioPlayer, err error) {
 		LoopSong:     loopSong,
 		PlayShuffle:  playShuffle,
 		InputChan:    inputChan,
+    EventChan:		eventChan,
 	}
 
 	err = nil
