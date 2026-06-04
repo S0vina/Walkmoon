@@ -35,6 +35,7 @@ type Model struct {
 	player 			*audio.AudioPlayer
 	CurrentSong 	audio.Musica
 	Shuffle			bool
+	ShowPicker		bool
 	filepicker		filepicker.Model
 }
 
@@ -47,6 +48,7 @@ func New(p *audio.AudioPlayer) Model {
 		player: p,
 		filepicker: fp,
 		Shuffle: false,
+		ShowPicker: false,
 	}
 }
 
@@ -96,6 +98,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.player.InputChan <- tecla
 		case "s":
 			m.player.InputChan <- tecla
+		case "f":
+			m.ShowPicker = !m.ShowPicker
 		}
 
 	}
@@ -149,12 +153,18 @@ func (m Model) View() string {
 		mutado,
 	)
 
-	shuffle := ""
-	if(m.Shuffle){
-		shuffle += "ON"
-	} else {
-		shuffle += "OFF"
+	shuffleState := "ON"
+	color := "#04B575"
+	if(!m.Shuffle){
+		shuffleState = "OFF"
+		color = "#FF0000"
 	}
+
+	shuffle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(color)).
+		Bold(true).
+		Render(shuffleState)
+
 
 	linhaShuffle := fmt.Sprintf("SHUFFLE: %s", shuffle)
 
@@ -164,14 +174,19 @@ func (m Model) View() string {
 	)
 
 	// ===== JUNTA TUDO =====
-	conteudo := fmt.Sprintf(
-		"%s\n\n%s\n%s\n%s\n\n%s",
-		titulo,
-		linhaPrincipal,
-		linhaVolume,
-		linhaShuffle,
-		comandos,
-	)
+	conteudo := ""
+	if(m.ShowPicker){
+		conteudo += fmt.Sprintf("%s", m.filepicker.View())
+	} else {
+		conteudo += fmt.Sprintf(
+			"%s\n\n%s\n%s\n%s\n\n%s",
+			titulo,
+			linhaPrincipal,
+			linhaVolume,
+			linhaShuffle,
+			comandos,
+		)
+	}
 
 	// aplica borda final
 	return estiloBase.Render(conteudo)
