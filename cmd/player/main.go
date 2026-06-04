@@ -45,7 +45,7 @@ func main() {
 	}()
 
 	telaInicial := ui.New(ap, playlist)
-	programa := tea.NewProgram(telaInicial, tea.WithAltScreen())
+	programa := tea.NewProgram(telaInicial, tea.WithAltScreen(), tea.WithFPS(60))
 
 	if _, err := programa.Run(); err != nil {
 		log.Fatal("erro ao iniciar a interface gráfica:", err)
