@@ -33,22 +33,27 @@ var (
 
 type Model struct {
 	player 			*audio.AudioPlayer
+	Playlist		[]audio.Musica
 	CurrentSong 	audio.Musica
 	Shuffle			bool
 	ShowPicker		bool
 	filepicker		filepicker.Model
+	width  int
+	height int
 }
 
-func New(p *audio.AudioPlayer) Model {
+func New(p *audio.AudioPlayer, playlist []audio.Musica) Model {
 	fp := filepicker.New()
 	fp.Height = 10
 	fp.CurrentDirectory, _ = os.UserHomeDir()
+	fp.AllowedTypes = []string{".mp3"}
 
 	return Model{
 		player: p,
 		filepicker: fp,
 		Shuffle: false,
 		ShowPicker: false,
+		Playlist: playlist,
 	}
 }
 
@@ -68,6 +73,11 @@ func (m Model) Init() tea.Cmd {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch msg := msg.(type) {
+
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		return m, nil
 
 	case audio.SongChanged:
 		m.CurrentSong = msg.Song
@@ -104,6 +114,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	}
 	m.filepicker, cmd = m.filepicker.Update(msg)
+	if didSelect, path := m.filepicker.DidSelectFile(msg); didSelect {	
+		m.player.SelectSongChan <- path
+		m.ShowPicker = false
+	}
 	return m, cmd
 }
 
@@ -168,9 +182,10 @@ func (m Model) View() string {
 
 	linhaShuffle := fmt.Sprintf("SHUFFLE: %s", shuffle)
 
+	picker := estiloComando.Render("[f] Para selecionar musica")
 	// ===== COMANDOS =====
 	comandos := estiloComando.Render(
-		"[space] play  •  [p]/[n] pular  •  [+]/[-] vol  •  [m] mute  • [s] shuffle • [q] sair",
+		"[space] play    •    [p]/[n] pular    •    [+]/[-] vol\n\n[m] mute    •    [s] shuffle    •    [q] sair",
 	)
 
 	// ===== JUNTA TUDO =====
@@ -179,15 +194,37 @@ func (m Model) View() string {
 		conteudo += fmt.Sprintf("%s", m.filepicker.View())
 	} else {
 		conteudo += fmt.Sprintf(
-			"%s\n\n%s\n%s\n%s\n\n%s",
+			"%s\n\n%s\n%s\n%s\n\n\n\n%s\n\n%s",
 			titulo,
 			linhaPrincipal,
 			linhaVolume,
 			linhaShuffle,
+			picker,
 			comandos,
 		)
 	}
 
 	// aplica borda final
-	return estiloBase.Render(conteudo)
+	player := estiloBase.Render(conteudo)
+
+	container := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("#874BFD"))
+
+	larguraInterna := m.width - container.GetHorizontalFrameSize()
+	alturaInterna := m.height - container.GetVerticalFrameSize()
+
+	centralizado := lipgloss.Place(
+		larguraInterna,
+		alturaInterna,
+		lipgloss.Center,
+		lipgloss.Center,
+		player,
+	)
+
+	return container.
+		Width(larguraInterna).
+		Height(alturaInterna).
+		Render(centralizado)
+	
 }

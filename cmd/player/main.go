@@ -44,7 +44,7 @@ func main() {
 		ap.Run(playlist)
 	}()
 
-	telaInicial := ui.New(ap)
+	telaInicial := ui.New(ap, playlist)
 	programa := tea.NewProgram(telaInicial, tea.WithAltScreen())
 
 	if _, err := programa.Run(); err != nil {
