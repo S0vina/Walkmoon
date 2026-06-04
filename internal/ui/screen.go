@@ -207,7 +207,7 @@ func (m Model) View() string {
 	// --- Progresso ---
 	linhaTempo := fmt.Sprintf("%s / %s",
 		formatDuration(m.CurrentTime),
-		formatDuration(m.TotalTime-m.CurrentTime))
+		formatDuration(m.TotalTime))
 
 	// --- Comandos ---
 	picker   := commandStyle.Render("[f] selecionar música")
