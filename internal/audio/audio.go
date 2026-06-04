@@ -40,6 +40,7 @@ type AudioPlayer struct {
 	PlayShuffle  bool
 	InputChan    chan string
 	EventChan    chan tea.Msg
+	SelectSongChan	chan string
 	CurrentSong  Musica
 }
 
@@ -61,6 +62,7 @@ func New() (ap *AudioPlayer, err error) {
 
 	inputChan := make(chan string, 1)
 	eventChan := make(chan tea.Msg, 5)
+	selectChan := make(chan string, 1)
 
 	CurrentIndex := 0
 
@@ -79,6 +81,7 @@ func New() (ap *AudioPlayer, err error) {
 		PlayShuffle:  playShuffle,
 		InputChan:    inputChan,
     	EventChan:		eventChan,
+		SelectSongChan:	selectChan,
 	}
 
 	err = nil
@@ -88,6 +91,10 @@ func New() (ap *AudioPlayer, err error) {
 
 // method: scans the folder passed in the arg and return the files in it
 func (ap *AudioPlayer) ScanFolder(root string) (playlist []Musica, err error) {
+	root, err = filepath.Abs(root)
+	if err != nil {
+		return nil, err
+	}
 
 	contador := 1
 
@@ -184,7 +191,7 @@ RunLoop:
 		count := 0
 
 		ap.EventChan <- SongChanged{Song: ap.CurrentSong} 
-		imm, end := ap.Play(ap.CurrentSong.Path)
+		imm, end := ap.Play(ap.CurrentSong.Path, queue)
 		if end {
 			return
 		}
@@ -263,7 +270,7 @@ func (ap *AudioPlayer) updateSong(count int, queue []Musica) (nextSongIndex int)
 	return count
 }
 
-func (ap *AudioPlayer) Play(path_song string) (imm int, end bool) {
+func (ap *AudioPlayer) Play(path_song string, queue []Musica) (imm int, end bool) {
 	// f = a path for a song
 	end = false
 	imm = 1
@@ -306,6 +313,17 @@ MainLoop:
 		select {
 		case <-done:
 			return
+
+		case song := <-ap.SelectSongChan:
+			for i, s := range queue {
+				if s.Path == song{
+					ap.CurrentIndex = i
+					break
+				}
+			}
+			speaker.Clear()
+			imm = 0
+			break MainLoop
 
 		case resp := <-ap.InputChan:
 			// Switch case for player manipulation
