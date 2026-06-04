@@ -44,6 +44,11 @@ type AudioPlayer struct {
 type SongChanged struct{ Song Musica }
 type ShuffleState struct {}
 
+type ProgressChanged struct {
+	Current 	time.Duration
+	Total		time.Duration
+}
+
 // method: creates a new audioPlayer
 func New() (ap *AudioPlayer, err error) {
 	sr := beep.SampleRate(44100)
@@ -233,13 +238,16 @@ func (ap *AudioPlayer) Play(path_song string, queue []Musica) (imm int, end bool
 	}
 	defer f.Close()
 
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
 	// decode the mp3 file
 	streamer, format, err := mp3.Decode(f)
 	if err != nil {
 		log.Println("Erro ao decodificar mp3:", err)
 		return
 	}
-	defer streamer.Close()
+	defer streamer.Close()	
 
 	if format.SampleRate != ap.SampleRate {
 		beep.Resample(3, format.SampleRate, ap.SampleRate, streamer)
@@ -265,6 +273,15 @@ MainLoop:
 		select {
 		case <-done:
 			return
+
+		case <- ticker.C:
+			current := format.SampleRate.D(streamer.Position())
+			total := format.SampleRate.D(streamer.Len())
+
+			select {
+			case ap.EventChan <- ProgressChanged {Current: current, Total: total}:
+			default:
+			}
 
 		case song := <-ap.SelectSongChan:
 			for i, s := range queue {
