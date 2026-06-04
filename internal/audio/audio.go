@@ -13,17 +13,20 @@ import (
 	"github.com/gopxl/beep/v2"
 	"github.com/gopxl/beep/v2/mp3"
 	"github.com/gopxl/beep/v2/speaker"
+	// "github.com/dhowden/tag"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
 // struct: stores path and id(id stands for music number on the playlist)
 type Musica struct {
-	Id     int
-	Path   string
-	Title  string
-	Artist string
-	Album  string
-	Genre  string
+	Id        int
+	Path      string
+	Title     string
+	Artist    string
+	Album     string
+	Genre     string
+	ImageData []byte
+	ImageMIME string
 }
 
 // Centralizes all components that perdure in AudioPlayer Execution
@@ -94,7 +97,6 @@ func (ap *AudioPlayer) ScanFolder(root string) (playlist []Musica, err error) {
 	}
 	contador := 0
 
-	// cals the filepath.walk function that walks into the directory given as arg
 	err = filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -113,6 +115,7 @@ func (ap *AudioPlayer) ScanFolder(root string) (playlist []Musica, err error) {
 		}
 		return nil
 	})
+
 	return playlist, err
 }
 
@@ -163,7 +166,7 @@ RunLoop:
 			musicaAtual := queue[ap.CurrentIndex]
 
 			// Se, por azar a primeira música do Shuffle for a mesma que está tocando agora
-			if len(shuffleList) > 1 && shuffleList[0] == musicaAtual {
+			if len(shuffleList) > 1 && shuffleList[0].Title == musicaAtual.Title {
 				// Rotaciona a lista e joga a primeira música para o final
 				primeira := shuffleList[0]
 				shuffleList = append(shuffleList[1:], primeira)
