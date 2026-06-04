@@ -11,7 +11,9 @@ import (
 
 	"github.com/gopxl/beep/effects"
 	"github.com/gopxl/beep/v2"
+	"github.com/gopxl/beep/v2/flac"
 	"github.com/gopxl/beep/v2/mp3"
+	"github.com/gopxl/beep/v2/wav"
 	"github.com/gopxl/beep/v2/speaker"
 	"github.com/dhowden/tag"
 	tea "github.com/charmbracelet/bubbletea"
@@ -21,6 +23,7 @@ import (
 type Musica struct {
 	Id        int
 	Path      string
+	Ext 	  string	
 	Title     string
 	Artist    string
 	Album     string
@@ -125,6 +128,7 @@ func (ap *AudioPlayer) ScanFolder(root string) (playlist []Musica, err error) {
 					musica := Musica{
 						Id:    contador,
 						Path:  path,
+						Ext:   ext,
 						Title: info.Name(), // Usa o nome do arquivo (ex: "musica.wav") como fallback
 					}
 					playlist = append(playlist, musica)
@@ -190,8 +194,10 @@ RunLoop:
 		ap.CurrentSong = queue[ap.CurrentIndex]
 		count := 0
 
+		log.Print(ap.CurrentSong.Artist)
+
 		ap.EventChan <- SongChanged{Song: ap.CurrentSong} 
-		imm, end := ap.Play(ap.CurrentSong.Path, queue)
+		imm, end := ap.Play(ap.CurrentIndex, queue)
 		if end {
 			return
 		}
@@ -270,28 +276,50 @@ func (ap *AudioPlayer) updateSong(count int, queue []Musica) (nextSongIndex int)
 	return count
 }
 
-func (ap *AudioPlayer) Play(path_song string, queue []Musica) (imm int, end bool) {
+func (ap *AudioPlayer) Play(songIndex int, queue []Musica) (imm int, end bool) {
+
 	// f = a path for a song
 	end = false
 	imm = 1
-	f, err := os.Open(path_song)
+
+	pathSong, extSong := queue[songIndex].Path, queue[songIndex].Ext
+
+	f, err := os.Open(pathSong)
 	if err != nil {
 		log.Println("Erro ao abrir arquivo:", err)
 		return
 	}
 	defer f.Close()
 
-	// decode the mp3 file
-	streamer, format, err := mp3.Decode(f)
+	var streamer beep.StreamSeekCloser
+	var format beep.Format
+
+	// Escolhe o decodificador baseado na extensão
+	switch extSong {
+	case ".mp3":
+		streamer, format, err = mp3.Decode(f)
+	case ".flac":
+		streamer, format, err = flac.Decode(f)
+	case ".wav":
+		streamer, format, err = wav.Decode(f)
+	default:
+		log.Println("Formato não suportado:", extSong)
+		return
+	}
+
+	// Verifica se houve erro em qualquer uma das decodificações
 	if err != nil {
-		log.Println("Erro ao decodificar mp3:", err)
+		log.Printf("Erro ao decodificar %s: %v\n", extSong, err)
 		return
 	}
 	defer streamer.Close()
 
+	// A partir daqui você tem o 'streamer' e o 'format' prontos para mandar para o speaker!
+	_ = format // Evita erro de variável não utilizada no exemplo
+
 	if format.SampleRate != ap.SampleRate {
 		beep.Resample(3, format.SampleRate, ap.SampleRate, streamer)
-		// !!! log.Println("Speaker resampled in %d hz", format.SampleRate.N) LOOK THIS AFTER. IS NOT RESSAMPLING GOOD
+		log.Println("Speaker resampled in %d hz", format.SampleRate.N)
 	}
 
 	speaker.Lock()
