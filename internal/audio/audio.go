@@ -13,17 +13,20 @@ import (
 	"github.com/gopxl/beep/v2"
 	"github.com/gopxl/beep/v2/mp3"
 	"github.com/gopxl/beep/v2/speaker"
+	"github.com/dhowden/tag"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
 // struct: stores path and id(id stands for music number on the playlist)
 type Musica struct {
-	Id     int
-	Path   string
-	Title  string
-	Artist string
-	Album  string
-	Genre  string
+	Id        int
+	Path      string
+	Title     string
+	Artist    string
+	Album     string
+	Genre     string
+	ImageData []byte
+	ImageMIME string
 }
 
 // Centralizes all components that perdure in AudioPlayer Execution
@@ -92,27 +95,72 @@ func (ap *AudioPlayer) ScanFolder(root string) (playlist []Musica, err error) {
 	if err != nil {
 		return nil, err
 	}
-	contador := 0
 
-	// cals the filepath.walk function that walks into the directory given as arg
+	contador := 1
+
 	err = filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 
-		// Filtra apenas arquivos .mp3 (case-insensitive)
-		if !info.IsDir() && strings.HasSuffix(strings.ToLower(info.Name()), ".mp3") {	
+		// Garante que não é uma pasta antes de checar a extensão
+		if !info.IsDir() {
+			ext := strings.ToLower(filepath.Ext(path)) // Pega a extensão (ex: ".mp3", ".flac")
 
-			musica := Musica{Id: contador, Path: path}
+			// Filtra apenas as extensões suportadas pelo seu player
+			if ext == ".mp3" || ext == ".flac" || ext == ".wav" {
+				
+				// Abre o arquivo de áudio encontrado
+				file, err := os.Open(path)
+				if err != nil {
+					return nil // Pula se der erro ao abrir
+				}
+				defer file.Close()
 
-			playlist = append(playlist, musica)
-			contador++
+				// Tenta ler os metadados do arquivo
+				m, err := tag.ReadFrom(file)
+				if err != nil {
+					// Se o arquivo não tiver tags (muito comum em .wav), 
+					// ainda adicionamos à playlist usando o nome do arquivo como título básico
+					musica := Musica{
+						Id:    contador,
+						Path:  path,
+						Title: info.Name(), // Usa o nome do arquivo (ex: "musica.wav") como fallback
+					}
+					playlist = append(playlist, musica)
+					contador++
+					return nil
+				}
 
-			// implementar a lógica de loop da folder com uma flag loop ativada por uma flag
-			// no comando de terminal chamado -l
+				// Monta a struct Musica com os metadados extraídos
+				musica := Musica{
+					Id:     contador,
+					Path:   path,
+					Title:  m.Title(),
+					Artist: m.Artist(),
+					Album:  m.Album(),
+					Genre:  m.Genre(),
+				}
+
+				// Se o título vier vazio nas tags, usa o nome do arquivo para não ficar em branco na UI
+				if musica.Title == "" {
+					musica.Title = info.Name()
+				}
+
+				// Se houver capa de álbum
+				if pic := m.Picture(); pic != nil {
+					musica.ImageData = pic.Data
+					musica.ImageMIME = pic.MIMEType
+				}
+
+				// Adiciona a música completa na playlist
+				playlist = append(playlist, musica)
+				contador++
+			}
 		}
 		return nil
 	})
+
 	return playlist, err
 }
 
@@ -163,7 +211,7 @@ RunLoop:
 			musicaAtual := queue[ap.CurrentIndex]
 
 			// Se, por azar a primeira música do Shuffle for a mesma que está tocando agora
-			if len(shuffleList) > 1 && shuffleList[0] == musicaAtual {
+			if len(shuffleList) > 1 && shuffleList[0].Title == musicaAtual.Title {
 				// Rotaciona a lista e joga a primeira música para o final
 				primeira := shuffleList[0]
 				shuffleList = append(shuffleList[1:], primeira)
