@@ -19,25 +19,15 @@ var (
 	corVerde    = lipgloss.Color("#04B575")
 	corVermelha = lipgloss.Color("#FF0000")
 	corCinza    = lipgloss.Color("#626262")
-	corBranca   = lipgloss.Color("#FAFAFA")
+	// corBranca   = lipgloss.Color("#FAFAFA")
 )
 
 // ===== ESTILOS =====
 var (
-	containerStyle = lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(corRoxa)
-
 	playerStyle = lipgloss.NewStyle().
 		Padding(1, 3).
 		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(corRoxa)
-
-	titleStyle = lipgloss.NewStyle().
-		Foreground(corBranca).
-		Background(corRoxa).
-		Bold(true).
-		Padding(0, 1)
+		BorderForeground(corRoxa)	
 
 	songStyle    = lipgloss.NewStyle().Foreground(corVerde).Bold(true)
 	commandStyle = lipgloss.NewStyle().Foreground(corCinza)
@@ -109,12 +99,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width  = msg.Width
 		m.height = msg.Height
 
-		margem := 20 // ← ajuste para controlar a largura do player
-		m.playerWidth       = m.width - containerStyle.GetHorizontalFrameSize() - margem
-		m.progressBar.Width = m.playerWidth - playerStyle.GetHorizontalFrameSize()
+		margem := 10
+		m.playerWidth       = m.width - margem
+		m.progressBar.Width = m.playerWidth - playerStyle.GetHorizontalFrameSize() - 10
 		return m, nil
 
-	// FrameMsg é enviado internamente pela biblioteca para avançar a animação
 	case progress.FrameMsg:
 		pm, c := m.progressBar.Update(msg)
 		m.progressBar = pm.(progress.Model)
@@ -127,7 +116,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.TotalTime > 0 {
 			pct = float64(m.CurrentTime) / float64(m.TotalTime)
 		}
-		// SetPercent anima suavemente a barra até o novo valor
 		return m, tea.Batch(EventListening(m.player.EventChan), m.progressBar.SetPercent(pct))
 
 	case audio.SongChanged:
@@ -168,74 +156,115 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // ===== VIEW =====
 
-func (m Model) View() string {
-	if m.ShowPicker {
-		return playerStyle.Width(m.playerWidth).Render(m.filepicker.View())
-	}
-
-	// --- Título ---
-	titulo := titleStyle.Render("WALKMOON")
-
-	// --- Música e estado ---
+func (m Model) View() string {	
 	nome := filepath.Base(m.CurrentSong.Path)
 	if nome == "." || nome == "" {
 		nome = "Carregando a fita..."
 	}
 
-	estadoTexto, cor := "⏸ TOCANDO", corVerde
-	if m.player.Ctrl.Paused {
-		estadoTexto, cor = "▶ PAUSADO", corVermelha
-	}
-	estado        := lipgloss.NewStyle().Foreground(cor).Bold(true).Render(estadoTexto)
-	linhaPrincipal := fmt.Sprintf("%s  %s", estado, songStyle.Render(nome))
-
-	// --- Volume ---
 	mutado := ""
 	if m.player.Volume.Silent {
 		mutado = lipgloss.NewStyle().Foreground(corVermelha).Render(" [MUTADO]")
 	}
-	linhaVolume := fmt.Sprintf("volume: %.1f%s", m.player.Volume.Volume, mutado)
 
-	// --- Shuffle ---
 	shuffleTexto, shuffleCor := "ON", corVerde
 	if !m.Shuffle {
 		shuffleTexto, shuffleCor = "OFF", corVermelha
 	}
-	linhaShuffle := fmt.Sprintf("SHUFFLE: %s",
+
+	estadoTexto, estadoCor := "⏸ TOCANDO", corVerde
+	if m.player.Ctrl.Paused {
+		estadoTexto, estadoCor = "▶ PAUSADO", corVermelha
+	}
+
+	// --- Footer (renderizado primeiro para calcular altura) ---
+	innerWidth := m.playerWidth - playerStyle.GetHorizontalFrameSize()
+	colEsq     := innerWidth / 2
+	colMeio    := innerWidth / 4
+	colDir     := innerWidth - colEsq - colMeio
+
+	footerEstado  := lipgloss.NewStyle().Foreground(estadoCor).Bold(true).Render(estadoTexto)
+	footerNome    := songStyle.Render(nome)
+	footerShuffle := fmt.Sprintf("SHUFFLE: %s",
 		lipgloss.NewStyle().Foreground(shuffleCor).Bold(true).Render(shuffleTexto))
+	footerVolume  := fmt.Sprintf("vol: %.1f%s", m.player.Volume.Volume, mutado)
 
-	// --- Progresso ---
-	linhaTempo := fmt.Sprintf("%s / %s",
-		formatDuration(m.CurrentTime),
-		formatDuration(m.TotalTime))
+	colunaEsq  := lipgloss.JoinVertical(lipgloss.Left, footerEstado, footerNome)
+	colunaMeio := lipgloss.NewStyle().Width(colMeio).Align(lipgloss.Left).Render(footerShuffle)
+	colunaDir  := lipgloss.NewStyle().Width(colDir).Align(lipgloss.Right).Render(footerVolume)
 
-	// --- Comandos ---
-	picker   := commandStyle.Render("[f] selecionar música")
-	comandos := commandStyle.Render("[space] play  •  [p]/[n] pular  •  [+]/[-] vol  •  [m] mute  •  [s] shuffle  •  [q] sair")
-
-	// --- Layout ---
-	conteudo := lipgloss.JoinVertical(lipgloss.Left,
-		titulo,
-		"",
-		linhaPrincipal,
-		linhaVolume,
-		linhaShuffle,
-		"",
-		m.progressBar.View(),
-		linhaTempo,
-		"",
-		picker,
-		"",
-		comandos,
+	linhaInfo := lipgloss.JoinHorizontal(lipgloss.Top,
+		lipgloss.NewStyle().Width(colEsq).Render(colunaEsq),
+		colunaMeio,
+		colunaDir,
 	)
 
-	player := playerStyle.Width(m.playerWidth).Render(conteudo)
+	linhaTempo := fmt.Sprintf("%s %s %s",
+		formatDuration(m.CurrentTime),
+		m.progressBar.View(),
+		formatDuration(m.TotalTime))
 
-	// Centraliza o player dentro do container que ocupa o terminal inteiro
-	largura := m.width  - containerStyle.GetHorizontalFrameSize()
-	altura  := m.height - containerStyle.GetVerticalFrameSize()
+	footer := playerStyle.Width(m.playerWidth).Render(
+		lipgloss.JoinVertical(lipgloss.Left,
+			linhaInfo,
+			linhaTempo,
+		),
+	)
 
-	centralizado := lipgloss.Place(largura, altura, lipgloss.Center, lipgloss.Center, player)
+	// --- Bloco principal (comandos) ---
+	figlet := `
+__        ___    _     _  ____  __  ___   ___  _   _ 
+\ \      / / \  | |   | |/ /  \/  |/ _ \ / _ \| \ | |
+ \ \ /\ / / _ \ | |   | ' /| |\/| | | | | | | |  \| |
+  \ V  V / ___ \| |___| . \| |  | | |_| | |_| | |\  |
+   \_/\_/_/   \_\_____|_|\_\_|  |_|\___/ \___/|_| \_|`
 
-	return containerStyle.Width(largura).Height(altura).Render(centralizado)
+	titulo := lipgloss.NewStyle().Foreground(corRoxa).Bold(true).Render(figlet)
+
+	tecla := func(k, icon, desc string) string {
+		return fmt.Sprintf("%s  %s  %s",
+			commandStyle.Render(k),
+			lipgloss.NewStyle().Foreground(corRoxa).Render(icon),
+			commandStyle.Render(desc),
+		)
+	}
+
+	comandos := lipgloss.JoinVertical(lipgloss.Left,
+		tecla("space  ", "⏸", "play/pause"),
+		tecla("p / n  ", "󰒮  󰒭", "anterior / próxima"),
+		tecla("+ / -  ", "󰕾  󰖁", "volume"),
+		tecla("m      ", "󰝟", "mute"),
+		tecla("s      ", "󰒝", "shuffle"),
+		tecla("f      ", "󰢿", "selecionar arquivo"),
+		tecla("q      ", "󰉈", "sair"),
+	)
+
+	alturaFooter   := lipgloss.Height(footer)
+	alturaComandos := m.height - alturaFooter
+
+	var tela string
+	if m.ShowPicker {
+		conteudo := lipgloss.JoinVertical(lipgloss.Left, m.filepicker.View())
+		blocoFile := playerStyle.
+			Width(m.playerWidth).
+			Height(alturaComandos - playerStyle.GetVerticalFrameSize()).
+			Render(conteudo)
+		tela = lipgloss.Place(m.width, alturaComandos, lipgloss.Center, lipgloss.Center, blocoFile)
+	} else {
+		conteudo := lipgloss.JoinVertical(lipgloss.Left,
+			titulo,
+			"",
+			comandos,
+		)
+		blocoComandos := playerStyle.
+			Width(m.playerWidth).
+			Height(alturaComandos - playerStyle.GetVerticalFrameSize()).
+			Render(conteudo)
+		tela = lipgloss.Place(m.width, alturaComandos, lipgloss.Center, lipgloss.Center, blocoComandos)
+	}
+
+	return lipgloss.JoinVertical(lipgloss.Center,
+		tela,
+		footer,
+	)
 }
