@@ -50,6 +50,11 @@ type AudioPlayer struct {
 type SongChanged struct{ Song Musica }
 type ShuffleState struct {}
 
+type ProgressChanged struct {
+	Current 	time.Duration
+	Total		time.Duration
+}
+
 // method: creates a new audioPlayer
 func New() (ap *AudioPlayer, err error) {
 	sr := beep.SampleRate(44100)
@@ -307,21 +312,24 @@ func (ap *AudioPlayer) Play(songIndex int, queue []Musica) (imm int, end bool) {
 
 	defer streamer.Close()
 
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
 	// Verifica se houve erro em qualquer uma das decodificações
 	if err != nil {
 		log.Printf("Erro ao decodificar %s: %v\n", extSong, err)
 		return
 	}
 
-	var finalStreamer beep.Streamer = streamer
+	var originalStreamer beep.StreamSeekCloser = streamer
+    var finalStreamer beep.Streamer = streamer
 
 	if format.SampleRate != ap.SampleRate {
-		finalStreamer = beep.Resample(3, format.SampleRate, ap.SampleRate, finalStreamer)
+		finalStreamer = beep.Resample(3, format.SampleRate, ap.SampleRate, originalStreamer)
 		// log.Println("Speaker resampled in %d hz", format.SampleRate.N)
 	}
 	
 	speaker.Lock()
-	ap.SampleRate = format.SampleRate
 	ap.Ctrl.Streamer = finalStreamer
 	speaker.Unlock()
 
@@ -339,6 +347,15 @@ MainLoop:
 		select {
 		case <-done:
 			return
+
+		case <- ticker.C:
+			current := format.SampleRate.D(originalStreamer.Position())
+			total := format.SampleRate.D(originalStreamer.Len())
+
+			select {
+			case ap.EventChan <- ProgressChanged {Current: current, Total: total}:
+			default:
+			}
 
 		case song := <-ap.SelectSongChan:
 			for i, s := range queue {
