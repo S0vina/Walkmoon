@@ -108,7 +108,7 @@ func (ap *AudioPlayer) ScanFolder(root string) (playlist []Musica, err error) {
 
 		// Garante que não é uma pasta antes de checar a extensão
 		if !info.IsDir() {
-			ext := strings.ToLower(filepath.Ext(path)) // Pega a extensão (ex: ".mp3", ".flac")
+			ext := strings.TrimSpace(strings.ToLower(filepath.Ext(path))) // Pega a extensão (ex: ".mp3", ".flac")
 
 			// Filtra apenas as extensões suportadas pelo seu player
 			if ext == ".mp3" || ext == ".flac" || ext == ".wav" {
@@ -140,6 +140,7 @@ func (ap *AudioPlayer) ScanFolder(root string) (playlist []Musica, err error) {
 				musica := Musica{
 					Id:     contador,
 					Path:   path,
+					Ext: 	ext,
 					Title:  m.Title(),
 					Artist: m.Artist(),
 					Album:  m.Album(),
@@ -194,7 +195,7 @@ RunLoop:
 		ap.CurrentSong = queue[ap.CurrentIndex]
 		count := 0
 
-		log.Print(ap.CurrentSong.Artist)
+		// log.Print(ap.CurrentSong.Artist)
 
 		ap.EventChan <- SongChanged{Song: ap.CurrentSong} 
 		imm, end := ap.Play(ap.CurrentIndex, queue)
@@ -303,28 +304,28 @@ func (ap *AudioPlayer) Play(songIndex int, queue []Musica) (imm int, end bool) {
 	case ".wav":
 		streamer, format, err = wav.Decode(f)
 	default:
-		log.Println("Formato não suportado:", extSong)
+		log.Printf("extensão invalida '%s'", extSong)
 		return
 	}
+
+	defer streamer.Close()
 
 	// Verifica se houve erro em qualquer uma das decodificações
 	if err != nil {
 		log.Printf("Erro ao decodificar %s: %v\n", extSong, err)
 		return
 	}
-	defer streamer.Close()
 
-	// A partir daqui você tem o 'streamer' e o 'format' prontos para mandar para o speaker!
-	_ = format // Evita erro de variável não utilizada no exemplo
+	var finalStreamer beep.Streamer = streamer
 
 	if format.SampleRate != ap.SampleRate {
-		beep.Resample(3, format.SampleRate, ap.SampleRate, streamer)
-		log.Println("Speaker resampled in %d hz", format.SampleRate.N)
+		finalStreamer = beep.Resample(3, format.SampleRate, ap.SampleRate, finalStreamer)
+		// log.Println("Speaker resampled in %d hz", format.SampleRate.N)
 	}
-
+	
 	speaker.Lock()
 	ap.SampleRate = format.SampleRate
-	ap.Ctrl.Streamer = streamer
+	ap.Ctrl.Streamer = finalStreamer
 	speaker.Unlock()
 
 	// trigger for the end of the function if the speaker.Play ends
