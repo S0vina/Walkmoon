@@ -110,60 +110,57 @@ func (ap *AudioPlayer) ScanFolder(root string) (playlist []Musica, err error) {
 		if !info.IsDir() {
 			ext := strings.TrimSpace(strings.ToLower(filepath.Ext(path))) // Pega a extensão (ex: ".mp3", ".flac")
 
-			// Filtra apenas as extensões suportadas pelo seu player
 			if ext == ".mp3" || ext == ".flac" || ext == ".wav" {
-				
-				// Abre o arquivo de áudio encontrado
 				file, err := os.Open(path)
 				if err != nil {
-					return nil // Pula se der erro ao abrir
+					return nil // Ignora arquivos que não consegue abrir e continua o Walk
 				}
-				defer file.Close()
 
-				// Tenta ler os metadados do arquivo
-				m, err := tag.ReadFrom(file)
-				if err != nil {
-					// Se o arquivo não tiver tags (muito comum em .wav), 
-					// ainda adicionamos à playlist usando o nome do arquivo como título básico
-					musica := Musica{
-						Id:    contador,
-						Path:  path,
-						Ext:   ext,
-						Title: info.Name(), // Usa o nome do arquivo (ex: "musica.wav") como fallback
+					// Tenta ler os metadados do arquivo
+					m, err := tag.ReadFrom(file)
+					if err != nil {
+						// Se o arquivo não tiver tags (muito comum em .wav), 
+						// ainda adicionamos à playlist usando o nome do arquivo como título básico
+						musica := Musica{
+							Id:    contador,
+							Path:  path,
+							Ext:   ext,
+							Title: info.Name(), // Usa o nome do arquivo (ex: "musica.wav") como fallback
+						}
+						playlist = append(playlist, musica)
+						contador++
+						return nil
 					}
+
+					// Monta a struct Musica com os metadados extraídos
+					musica := Musica{
+						Id:     contador,
+						Path:   path,
+						Ext: 	ext,
+						Title:  m.Title(),
+						Artist: m.Artist(),
+						Album:  m.Album(),
+						Genre:  m.Genre(),
+					}
+
+					// Se o título vier vazio nas tags, usa o nome do arquivo para não ficar em branco na UI
+					if musica.Title == "" {
+						musica.Title = info.Name()
+					}
+
+					// Se houver capa de álbum
+					if pic := m.Picture(); pic != nil {
+						musica.ImageData = pic.Data
+						musica.ImageMIME = pic.MIMEType
+					}
+
+					// Adiciona a música completa na playlist
 					playlist = append(playlist, musica)
 					contador++
-					return nil
-				}
-
-				// Monta a struct Musica com os metadados extraídos
-				musica := Musica{
-					Id:     contador,
-					Path:   path,
-					Ext: 	ext,
-					Title:  m.Title(),
-					Artist: m.Artist(),
-					Album:  m.Album(),
-					Genre:  m.Genre(),
-				}
-
-				// Se o título vier vazio nas tags, usa o nome do arquivo para não ficar em branco na UI
-				if musica.Title == "" {
-					musica.Title = info.Name()
-				}
-
-				// Se houver capa de álbum
-				if pic := m.Picture(); pic != nil {
-					musica.ImageData = pic.Data
-					musica.ImageMIME = pic.MIMEType
-				}
-
-				// Adiciona a música completa na playlist
-				playlist = append(playlist, musica)
-				contador++
 			}
 		}
 		return nil
+		
 	})
 
 	return playlist, err
