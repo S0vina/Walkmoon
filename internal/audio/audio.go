@@ -11,7 +11,9 @@ import (
 
 	"github.com/gopxl/beep/effects"
 	"github.com/gopxl/beep/v2"
+	"github.com/gopxl/beep/v2/flac"
 	"github.com/gopxl/beep/v2/mp3"
+	"github.com/gopxl/beep/v2/wav"
 	"github.com/gopxl/beep/v2/speaker"
 	"github.com/dhowden/tag"
 	tea "github.com/charmbracelet/bubbletea"
@@ -21,6 +23,7 @@ import (
 type Musica struct {
 	Id        int
 	Path      string
+	Ext 	  string	
 	Title     string
 	Artist    string
 	Album     string
@@ -110,60 +113,59 @@ func (ap *AudioPlayer) ScanFolder(root string) (playlist []Musica, err error) {
 
 		// Garante que não é uma pasta antes de checar a extensão
 		if !info.IsDir() {
-			ext := strings.ToLower(filepath.Ext(path)) // Pega a extensão (ex: ".mp3", ".flac")
+			ext := strings.TrimSpace(strings.ToLower(filepath.Ext(path))) // Pega a extensão (ex: ".mp3", ".flac")
 
-			// Filtra apenas as extensões suportadas pelo seu player
 			if ext == ".mp3" || ext == ".flac" || ext == ".wav" {
-				
-				// Abre o arquivo de áudio encontrado
 				file, err := os.Open(path)
 				if err != nil {
-					return nil // Pula se der erro ao abrir
+					return nil // Ignora arquivos que não consegue abrir e continua o Walk
 				}
-				defer file.Close()
 
-				// Tenta ler os metadados do arquivo
-				m, err := tag.ReadFrom(file)
-				if err != nil {
-					// Se o arquivo não tiver tags (muito comum em .wav), 
-					// ainda adicionamos à playlist usando o nome do arquivo como título básico
-					musica := Musica{
-						Id:    contador,
-						Path:  path,
-						Title: info.Name(), // Usa o nome do arquivo (ex: "musica.wav") como fallback
+					// Tenta ler os metadados do arquivo
+					m, err := tag.ReadFrom(file)
+					if err != nil {
+						// Se o arquivo não tiver tags (muito comum em .wav), 
+						// ainda adicionamos à playlist usando o nome do arquivo como título básico
+						musica := Musica{
+							Id:    contador,
+							Path:  path,
+							Ext:   ext,
+							Title: info.Name(), // Usa o nome do arquivo (ex: "musica.wav") como fallback
+						}
+						playlist = append(playlist, musica)
+						contador++
+						return nil
 					}
+
+					// Monta a struct Musica com os metadados extraídos
+					musica := Musica{
+						Id:     contador,
+						Path:   path,
+						Ext: 	ext,
+						Title:  m.Title(),
+						Artist: m.Artist(),
+						Album:  m.Album(),
+						Genre:  m.Genre(),
+					}
+
+					// Se o título vier vazio nas tags, usa o nome do arquivo para não ficar em branco na UI
+					if musica.Title == "" {
+						musica.Title = info.Name()
+					}
+
+					// Se houver capa de álbum
+					if pic := m.Picture(); pic != nil {
+						musica.ImageData = pic.Data
+						musica.ImageMIME = pic.MIMEType
+					}
+
+					// Adiciona a música completa na playlist
 					playlist = append(playlist, musica)
 					contador++
-					return nil
-				}
-
-				// Monta a struct Musica com os metadados extraídos
-				musica := Musica{
-					Id:     contador,
-					Path:   path,
-					Title:  m.Title(),
-					Artist: m.Artist(),
-					Album:  m.Album(),
-					Genre:  m.Genre(),
-				}
-
-				// Se o título vier vazio nas tags, usa o nome do arquivo para não ficar em branco na UI
-				if musica.Title == "" {
-					musica.Title = info.Name()
-				}
-
-				// Se houver capa de álbum
-				if pic := m.Picture(); pic != nil {
-					musica.ImageData = pic.Data
-					musica.ImageMIME = pic.MIMEType
-				}
-
-				// Adiciona a música completa na playlist
-				playlist = append(playlist, musica)
-				contador++
 			}
 		}
 		return nil
+		
 	})
 
 	return playlist, err
@@ -195,8 +197,10 @@ RunLoop:
 		ap.CurrentSong = queue[ap.CurrentIndex]
 		count := 0
 
+		// log.Print(ap.CurrentSong.Artist)
+
 		ap.EventChan <- SongChanged{Song: ap.CurrentSong} 
-		imm, end := ap.Play(ap.CurrentSong.Path, queue)
+		imm, end := ap.Play(ap.CurrentIndex, queue)
 		if end {
 			return
 		}
@@ -275,36 +279,58 @@ func (ap *AudioPlayer) updateSong(count int, queue []Musica) (nextSongIndex int)
 	return count
 }
 
-func (ap *AudioPlayer) Play(path_song string, queue []Musica) (imm int, end bool) {
+func (ap *AudioPlayer) Play(songIndex int, queue []Musica) (imm int, end bool) {
+
 	// f = a path for a song
 	end = false
 	imm = 1
-	f, err := os.Open(path_song)
+
+	pathSong, extSong := queue[songIndex].Path, queue[songIndex].Ext
+
+	f, err := os.Open(pathSong)
 	if err != nil {
 		log.Println("Erro ao abrir arquivo:", err)
 		return
 	}
 	defer f.Close()
 
+	var streamer beep.StreamSeekCloser
+	var format beep.Format
+
+	// Escolhe o decodificador baseado na extensão
+	switch extSong {
+	case ".mp3":
+		streamer, format, err = mp3.Decode(f)
+	case ".flac":
+		streamer, format, err = flac.Decode(f)
+	case ".wav":
+		streamer, format, err = wav.Decode(f)
+	default:
+		log.Printf("extensão invalida '%s'", extSong)
+		return
+	}
+
+	defer streamer.Close()
+
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
-	// decode the mp3 file
-	streamer, format, err := mp3.Decode(f)
+	// Verifica se houve erro em qualquer uma das decodificações
 	if err != nil {
-		log.Println("Erro ao decodificar mp3:", err)
+		log.Printf("Erro ao decodificar %s: %v\n", extSong, err)
 		return
 	}
-	defer streamer.Close()	
+
+	var originalStreamer beep.StreamSeekCloser = streamer
+    var finalStreamer beep.Streamer = streamer
 
 	if format.SampleRate != ap.SampleRate {
-		beep.Resample(3, format.SampleRate, ap.SampleRate, streamer)
-		// !!! log.Println("Speaker resampled in %d hz", format.SampleRate.N) LOOK THIS AFTER. IS NOT RESSAMPLING GOOD
+		finalStreamer = beep.Resample(3, format.SampleRate, ap.SampleRate, originalStreamer)
+		// log.Println("Speaker resampled in %d hz", format.SampleRate.N)
 	}
-
+	
 	speaker.Lock()
-	ap.SampleRate = format.SampleRate
-	ap.Ctrl.Streamer = streamer
+	ap.Ctrl.Streamer = finalStreamer
 	speaker.Unlock()
 
 	// trigger for the end of the function if the speaker.Play ends
@@ -323,8 +349,8 @@ MainLoop:
 			return
 
 		case <- ticker.C:
-			current := format.SampleRate.D(streamer.Position())
-			total := format.SampleRate.D(streamer.Len())
+			current := format.SampleRate.D(originalStreamer.Position())
+			total := format.SampleRate.D(originalStreamer.Len())
 
 			select {
 			case ap.EventChan <- ProgressChanged {Current: current, Total: total}:
