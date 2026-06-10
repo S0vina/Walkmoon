@@ -56,27 +56,42 @@ type ProgressChanged struct {
 }
 
 // method: creates a new audioPlayer
-func New() (ap *AudioPlayer, err error) {
+func New(state json) (ap *AudioPlayer, err error) {
+
 	sr := beep.SampleRate(44100)
 
-	ctrl := &beep.Ctrl{Paused: false}
-
-	volume := &effects.Volume{
-		Streamer: ctrl,
-		Base:     2,
-		Volume:   -1,
-		Silent:   false,
-	}
+	ctrl := &beep.Ctrl{Paused: true} // o player comeca pausado
 
 	inputChan := make(chan string, 1)
 	eventChan := make(chan tea.Msg, 5)
 	selectChan := make(chan string, 1)
 
-	CurrentIndex := 0
+	var v int
+	var ci int
+	var loopP bool
+	var loopS bool
+	var ps bool
 
-	loopPlaylist := true
-	loopSong := false
-	playShuffle := false
+	if state != nil {
+		v = state.PSvolume
+		ci = state.PScurrentIndex
+		loopP = state.PSloopPlaylist	
+		loopS = state.PSloopSong
+		ps = state.PSplayShuffle
+	}
+	
+	volume := &effects.Volume{
+		Streamer: ctrl,
+		Base:     2,
+		Volume:   v,
+		Silent:   false,
+	}
+
+	CurrentIndex := ci
+
+	loopPlaylist := loopP
+	loopSong := loopS
+	playShuffle := ps
 	speaker.Init(sr, sr.N(time.Second/10))
 
 	ap = &AudioPlayer{
