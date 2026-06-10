@@ -1,5 +1,4 @@
 package main
-package audio
 
 import (
 	"log"
