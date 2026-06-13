@@ -1,33 +1,21 @@
 package main
-package audio
 
 import (
 	"fmt"
 	"log"
 	"os"
+	"encoding/json"
+	"path/filepath"
 
 	"github.com/S0vina/walkmoon/internal/audio"
 	"github.com/S0vina/walkmoon/internal/ui"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-type PlayerState struct {
-	PSlastTrackPath string `json:"Path"`
-	PSvolume int `json: "Volume"`
-	PScurrentIndex int `json: "CurrentIndex"`
-	PSloopPlaylist bool `json: "LoopPlaylist"`
-	PSloopSong bool `json: "LoopSong"`
-	PSplayShuffle bool `json: "PlayShuffle"`
-}
-
 func main() {
-	// Error: wrong args
-	// if len(os.Args) < 2 {
-	// 	fmt.Println("Uso: walkmoon <caminho_da_pasta>")
-	// 	return
-	// }
-	var state PlayerState
-	var defaulDir string
+
+	var state *audio.PlayerState
+	var defaultDir string
 
 	configPath := "assets/memory/playerState.json"
 
@@ -35,24 +23,28 @@ func main() {
 
 	// caso o json ainda nao tenha sido criado
 	if err != nil {
-		home, errHome := os.UserHomeDir()
-		if errHome != nil {
-			defaulDir = "."
-		}else {
-			defaulDir = home
-		}
+		//home, errHome := os.UserHomeDir()
+		//if errHome != nil {
+		//	defaultDir = "assets/music"
+		//	log.Printf("err home: %s", errHome)
+		//}else {
+		//	defaultDir = home
+		//	log.Println(home)
+		//}
 
+		defaultDir = "./assets/music"
 		state = nil
+
 	} else {
 		err = json.Unmarshal(jsonPlayerState, &state)
 		if err != nil {
 			log.Fatalf("Erro ao decodificar o JSON: %v", err)
 		}
 
-		defaultDir = filepath.Dir(state.LastTrackPath)
+		defaultDir = filepath.Dir(state.PSlastTrackPath)
 	}
 
-	_ = defaulDir
+	_ = defaultDir
 
 	ap, errNewAP := audio.New(state)
 	if errNewAP != nil {
@@ -60,7 +52,7 @@ func main() {
 	}
 
 	// songs = [archives], err = any error
-	playlist, errScan := ap.ScanFolder(defaulDir)
+	playlist, errScan := ap.ScanFolder(defaultDir)
 
 	// if ocurre some error in scanFolder func
 	if errScan != nil {
