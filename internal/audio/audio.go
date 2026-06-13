@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"encoding/json"
 
 	"github.com/gopxl/beep/effects"
 	"github.com/gopxl/beep/v2"
@@ -47,6 +48,15 @@ type AudioPlayer struct {
 	CurrentSong  Musica
 }
 
+type PlayerState struct {
+	PSlastTrackPath string `json:"Path"`
+	PSvolume float64 `json: "Volume"`
+	PScurrentIndex int `json: "CurrentIndex"`
+	PSloopPlaylist bool `json: "LoopPlaylist"`
+	PSloopSong bool `json: "LoopSong"`
+	PSplayShuffle bool `json: "PlayShuffle"`
+}
+
 type SongChanged struct{ Song Musica }
 type ShuffleState struct {}
 
@@ -56,7 +66,7 @@ type ProgressChanged struct {
 }
 
 // method: creates a new audioPlayer
-func New(state json) (ap *AudioPlayer, err error) {
+func New(state *PlayerState) (ap *AudioPlayer, err error) {
 
 	sr := beep.SampleRate(44100)
 
@@ -65,12 +75,12 @@ func New(state json) (ap *AudioPlayer, err error) {
 	inputChan := make(chan string, 1)
 	eventChan := make(chan tea.Msg, 5)
 	selectChan := make(chan string, 1)
-
-	var v int
-	var ci int
-	var loopP bool
-	var loopS bool
-	var ps bool
+	var v float64
+	v = -1
+	ci := -1 // if stays minus 1, then no state has been created
+	loopP := true
+	loopS := false
+	ps := false
 
 	if state != nil {
 		v = state.PSvolume
@@ -86,8 +96,11 @@ func New(state json) (ap *AudioPlayer, err error) {
 		Volume:   v,
 		Silent:   false,
 	}
+	if ci == -1 {
+		ci = 0
+	}
 
-	CurrentIndex := ci
+	CurrentIndex := ci 
 
 	loopPlaylist := loopP
 	loopSong := loopS
@@ -107,8 +120,8 @@ func New(state json) (ap *AudioPlayer, err error) {
 		SelectSongChan:	selectChan,
 	}
 
+	// log.Printf("Player montado com sucesso")
 	err = nil
-
 	return
 }
 
@@ -207,6 +220,7 @@ func (ap *AudioPlayer) Run(playlist []Musica) {
 	var shuffleList []Musica
 
 	queue = playlist
+
 RunLoop:
 	for ap.CurrentIndex < len(queue) {
 		ap.CurrentSong = queue[ap.CurrentIndex]
@@ -216,6 +230,9 @@ RunLoop:
 
 		ap.EventChan <- SongChanged{Song: ap.CurrentSong} 
 		imm, end := ap.Play(ap.CurrentIndex, queue)
+		speaker.Lock()
+		ap.Ctrl.Paused = false
+		speaker.Unlock()
 		if end {
 			return
 		}
@@ -404,6 +421,8 @@ MainLoop:
 
 			case "q":
 				end = true
+				song := queue[songIndex]
+				ap.GenerateStatePlayer(song)
 				break MainLoop
 			}
 		}
@@ -425,7 +444,7 @@ func (ap *AudioPlayer) TogglePause() {
 func (ap *AudioPlayer) AddVolume(value float64) {
 	speaker.Lock()
 	newVolume := ap.Volume.Volume + value
-	if newVolume <= 3 && newVolume >= -5 {
+	if newVolume <= 0 && newVolume >= -6 {
 		ap.Volume.Volume = newVolume
 	}
 	speaker.Unlock()
@@ -452,6 +471,32 @@ func GenerateShuffle(playlist []Musica) (shuffleList []Musica) {
 	}
 
 	return shuffleList
+}
+
+func (ap *AudioPlayer)GenerateStatePlayer(song Musica) (err error) {
+	state := PlayerState{
+		PSlastTrackPath:  song.Path,
+		PSvolume:       ap.Volume.Volume, // Pega o volume atual do Beep
+		PScurrentIndex: ap.CurrentIndex,
+		PSloopPlaylist: ap.LoopPlaylist,
+		PSloopSong:     ap.LoopSong,
+		PSplayShuffle:  ap.PlayShuffle,
+	}
+
+	jsonData, err := json.MarshalIndent(state, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	filePath := "assets/memory/playerState.json"
+
+	pasta := filepath.Dir(filePath)
+	if err := os.MkdirAll(pasta, os.ModePerm); err != nil {
+		return err
+	}
+
+	err = os.WriteFile(filePath, jsonData, 0644)
+	return err
 }
 
 // method: Changes the loopPlaylist bool value

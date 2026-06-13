@@ -2,6 +2,11 @@ package main
 
 import (
 	"log"
+<<<<<<< HEAD
+=======
+	"os"
+	"encoding/json"
+>>>>>>> b14e0f9 (Feat: now player can be initiated from that last state (music, volume, paused) that its left)
 	"path/filepath"
 
 	"github.com/S0vina/walkmoon/internal/audio"
@@ -10,24 +15,22 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-type PlayerState struct {
-	PSlastTrackPath string `json:"Path"`
-	PSvolume int `json: "Volume"`
-	PScurrentIndex int `json: "CurrentIndex"`
-	PSloopPlaylist bool `json: "LoopPlaylist"`
-	PSloopSong bool `json: "LoopSong"`
-	PSplayShuffle bool `json: "PlayShuffle"`
-}
-
 func main() {
+<<<<<<< HEAD
 	var ap *audio.AudioPlayer
 	var state *audio.PlayerState
 	var err error
 	var musicDir string
 	var playlist []audio.Musica
+=======
+
+	var state *audio.PlayerState
+	var defaultDir string
+>>>>>>> b14e0f9 (Feat: now player can be initiated from that last state (music, volume, paused) that its left)
 
 	state, musicDir, err = config.LoadState[audio.PlayerState]()
 	if err != nil {
+<<<<<<< HEAD
 		log.Printf("directory for musics has been loaded")
 	}
 
@@ -47,6 +50,51 @@ func main() {
 		log.Fatal(err)
 	}
 
+=======
+		//home, errHome := os.UserHomeDir()
+		//if errHome != nil {
+		//	defaultDir = "assets/music"
+		//	log.Printf("err home: %s", errHome)
+		//}else {
+		//	defaultDir = home
+		//	log.Println(home)
+		//}
+
+		defaultDir = "./assets/music"
+		state = nil
+
+	} else {
+		err = json.Unmarshal(jsonPlayerState, &state)
+		if err != nil {
+			log.Fatalf("Erro ao decodificar o JSON: %v", err)
+		}
+
+		defaultDir = filepath.Dir(state.PSlastTrackPath)
+	}
+
+	_ = defaultDir
+
+	ap, errNewAP := audio.New(state)
+	if errNewAP != nil {
+		log.Fatal(errNewAP)
+	}
+
+	// songs = [archives], err = any error
+	playlist, errScan := ap.ScanFolder(defaultDir)
+
+	// if ocurre some error in scanFolder func
+	if errScan != nil {
+		log.Fatal(errScan)
+	}
+
+	// if folder with no songs, break the program
+	if len(playlist) == 0 {
+		fmt.Println("No songs founded.")
+		return
+	}
+
+	// for loop that play n songs of the folder
+>>>>>>> b14e0f9 (Feat: now player can be initiated from that last state (music, volume, paused) that its left)
 	go func() {
 		ap.Run(playlist)
 	}()
