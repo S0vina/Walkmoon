@@ -1,10 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
-	"encoding/json"
 	"path/filepath"
 
 	"github.com/S0vina/walkmoon/internal/audio"
@@ -13,11 +13,10 @@ import (
 )
 
 func main() {
-
 	var state *audio.PlayerState
 	var defaultDir string
 
-	configPath := "assets/memory/playerState.json"
+	configPath := "../../assets/memory/playerState.json"
 
 	jsonPlayerState, err := os.ReadFile(configPath)
 
@@ -32,7 +31,7 @@ func main() {
 		//	log.Println(home)
 		//}
 
-		defaultDir = "./assets/music"
+		defaultDir = "../../assets/music"
 		state = nil
 
 	} else {

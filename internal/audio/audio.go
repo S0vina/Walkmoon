@@ -2,29 +2,29 @@ package audio
 
 // imports
 import (
+	"encoding/json"
 	"log"
 	"math/rand"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
-	"encoding/json"
 
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/dhowden/tag"
 	"github.com/gopxl/beep/effects"
 	"github.com/gopxl/beep/v2"
 	"github.com/gopxl/beep/v2/flac"
 	"github.com/gopxl/beep/v2/mp3"
-	"github.com/gopxl/beep/v2/wav"
 	"github.com/gopxl/beep/v2/speaker"
-	"github.com/dhowden/tag"
-	tea "github.com/charmbracelet/bubbletea"
+	"github.com/gopxl/beep/v2/wav"
 )
 
 // struct: stores path and id(id stands for music number on the playlist)
 type Musica struct {
 	Id        int
 	Path      string
-	Ext 	  string	
+	Ext       string
 	Title     string
 	Artist    string
 	Album     string
@@ -35,39 +35,40 @@ type Musica struct {
 
 // Centralizes all components that perdure in AudioPlayer Execution
 type AudioPlayer struct {
-	SampleRate   beep.SampleRate
-	Ctrl         *beep.Ctrl
-	Volume       *effects.Volume
-	CurrentIndex int
-	LoopPlaylist bool
-	LoopSong     bool
-	PlayShuffle  bool
-	InputChan    chan string
-	EventChan    chan tea.Msg
-	SelectSongChan	chan string
-	CurrentSong  Musica
+	SampleRate     beep.SampleRate
+	Ctrl           *beep.Ctrl
+	Volume         *effects.Volume
+	CurrentIndex   int
+	LoopPlaylist   bool
+	LoopSong       bool
+	PlayShuffle    bool
+	InputChan      chan string
+	EventChan      chan tea.Msg
+	SelectSongChan chan string
+	CurrentSong    Musica
 }
 
 type PlayerState struct {
-	PSlastTrackPath string `json:"Path"`
-	PSvolume float64 `json: "Volume"`
-	PScurrentIndex int `json: "CurrentIndex"`
-	PSloopPlaylist bool `json: "LoopPlaylist"`
-	PSloopSong bool `json: "LoopSong"`
-	PSplayShuffle bool `json: "PlayShuffle"`
+	PSlastTrackPath string  `json:"Path"`
+	PSvolume        float64 `json: "Volume"`
+	PScurrentIndex  int     `json: "CurrentIndex"`
+	PSloopPlaylist  bool    `json: "LoopPlaylist"`
+	PSloopSong      bool    `json: "LoopSong"`
+	PSplayShuffle   bool    `json: "PlayShuffle"`
 }
 
-type SongChanged struct{ Song Musica }
-type ShuffleState struct {}
+type (
+	SongChanged  struct{ Song Musica }
+	ShuffleState struct{}
+)
 
 type ProgressChanged struct {
-	Current 	time.Duration
-	Total		time.Duration
+	Current time.Duration
+	Total   time.Duration
 }
 
 // method: creates a new audioPlayer
 func New(state *PlayerState) (ap *AudioPlayer, err error) {
-
 	sr := beep.SampleRate(44100)
 
 	ctrl := &beep.Ctrl{Paused: true} // o player comeca pausado
@@ -85,11 +86,11 @@ func New(state *PlayerState) (ap *AudioPlayer, err error) {
 	if state != nil {
 		v = state.PSvolume
 		ci = state.PScurrentIndex
-		loopP = state.PSloopPlaylist	
+		loopP = state.PSloopPlaylist
 		loopS = state.PSloopSong
 		ps = state.PSplayShuffle
 	}
-	
+
 	volume := &effects.Volume{
 		Streamer: ctrl,
 		Base:     2,
@@ -100,7 +101,7 @@ func New(state *PlayerState) (ap *AudioPlayer, err error) {
 		ci = 0
 	}
 
-	CurrentIndex := ci 
+	CurrentIndex := ci
 
 	loopPlaylist := loopP
 	loopSong := loopS
@@ -108,16 +109,16 @@ func New(state *PlayerState) (ap *AudioPlayer, err error) {
 	speaker.Init(sr, sr.N(time.Second/10))
 
 	ap = &AudioPlayer{
-		SampleRate:   sr,
-		Ctrl:         ctrl,
-		Volume:       volume,
-		CurrentIndex: CurrentIndex,
-		LoopPlaylist: loopPlaylist,
-		LoopSong:     loopSong,
-		PlayShuffle:  playShuffle,
-		InputChan:    inputChan,
-    	EventChan:		eventChan,
-		SelectSongChan:	selectChan,
+		SampleRate:     sr,
+		Ctrl:           ctrl,
+		Volume:         volume,
+		CurrentIndex:   CurrentIndex,
+		LoopPlaylist:   loopPlaylist,
+		LoopSong:       loopSong,
+		PlayShuffle:    playShuffle,
+		InputChan:      inputChan,
+		EventChan:      eventChan,
+		SelectSongChan: selectChan,
 	}
 
 	// log.Printf("Player montado com sucesso")
@@ -149,51 +150,50 @@ func (ap *AudioPlayer) ScanFolder(root string) (playlist []Musica, err error) {
 					return nil // Ignora arquivos que não consegue abrir e continua o Walk
 				}
 
-					// Tenta ler os metadados do arquivo
-					m, err := tag.ReadFrom(file)
-					if err != nil {
-						// Se o arquivo não tiver tags (muito comum em .wav), 
-						// ainda adicionamos à playlist usando o nome do arquivo como título básico
-						musica := Musica{
-							Id:    contador,
-							Path:  path,
-							Ext:   ext,
-							Title: info.Name(), // Usa o nome do arquivo (ex: "musica.wav") como fallback
-						}
-						playlist = append(playlist, musica)
-						contador++
-						return nil
-					}
-
-					// Monta a struct Musica com os metadados extraídos
+				// Tenta ler os metadados do arquivo
+				m, err := tag.ReadFrom(file)
+				if err != nil {
+					// Se o arquivo não tiver tags (muito comum em .wav),
+					// ainda adicionamos à playlist usando o nome do arquivo como título básico
 					musica := Musica{
-						Id:     contador,
-						Path:   path,
-						Ext: 	ext,
-						Title:  m.Title(),
-						Artist: m.Artist(),
-						Album:  m.Album(),
-						Genre:  m.Genre(),
+						Id:    contador,
+						Path:  path,
+						Ext:   ext,
+						Title: info.Name(), // Usa o nome do arquivo (ex: "musica.wav") como fallback
 					}
-
-					// Se o título vier vazio nas tags, usa o nome do arquivo para não ficar em branco na UI
-					if musica.Title == "" {
-						musica.Title = info.Name()
-					}
-
-					// Se houver capa de álbum
-					if pic := m.Picture(); pic != nil {
-						musica.ImageData = pic.Data
-						musica.ImageMIME = pic.MIMEType
-					}
-
-					// Adiciona a música completa na playlist
 					playlist = append(playlist, musica)
 					contador++
+					return nil
+				}
+
+				// Monta a struct Musica com os metadados extraídos
+				musica := Musica{
+					Id:     contador,
+					Path:   path,
+					Ext:    ext,
+					Title:  m.Title(),
+					Artist: m.Artist(),
+					Album:  m.Album(),
+					Genre:  m.Genre(),
+				}
+
+				// Se o título vier vazio nas tags, usa o nome do arquivo para não ficar em branco na UI
+				if musica.Title == "" {
+					musica.Title = info.Name()
+				}
+
+				// Se houver capa de álbum
+				if pic := m.Picture(); pic != nil {
+					musica.ImageData = pic.Data
+					musica.ImageMIME = pic.MIMEType
+				}
+
+				// Adiciona a música completa na playlist
+				playlist = append(playlist, musica)
+				contador++
 			}
 		}
 		return nil
-		
 	})
 
 	return playlist, err
@@ -228,7 +228,7 @@ RunLoop:
 
 		// log.Print(ap.CurrentSong.Artist)
 
-		ap.EventChan <- SongChanged{Song: ap.CurrentSong} 
+		ap.EventChan <- SongChanged{Song: ap.CurrentSong}
 		imm, end := ap.Play(ap.CurrentIndex, queue)
 		speaker.Lock()
 		ap.Ctrl.Paused = false
@@ -312,7 +312,6 @@ func (ap *AudioPlayer) updateSong(count int, queue []Musica) (nextSongIndex int)
 }
 
 func (ap *AudioPlayer) Play(songIndex int, queue []Musica) (imm int, end bool) {
-
 	// f = a path for a song
 	end = false
 	imm = 1
@@ -354,13 +353,13 @@ func (ap *AudioPlayer) Play(songIndex int, queue []Musica) (imm int, end bool) {
 	}
 
 	var originalStreamer beep.StreamSeekCloser = streamer
-    var finalStreamer beep.Streamer = streamer
+	var finalStreamer beep.Streamer = streamer
 
 	if format.SampleRate != ap.SampleRate {
 		finalStreamer = beep.Resample(3, format.SampleRate, ap.SampleRate, originalStreamer)
 		// log.Println("Speaker resampled in %d hz", format.SampleRate.N)
 	}
-	
+
 	speaker.Lock()
 	ap.Ctrl.Streamer = finalStreamer
 	speaker.Unlock()
@@ -380,18 +379,18 @@ MainLoop:
 		case <-done:
 			return
 
-		case <- ticker.C:
+		case <-ticker.C:
 			current := format.SampleRate.D(originalStreamer.Position())
 			total := format.SampleRate.D(originalStreamer.Len())
 
 			select {
-			case ap.EventChan <- ProgressChanged {Current: current, Total: total}:
+			case ap.EventChan <- ProgressChanged{Current: current, Total: total}:
 			default:
 			}
 
 		case song := <-ap.SelectSongChan:
 			for i, s := range queue {
-				if s.Path == song{
+				if s.Path == song {
 					ap.CurrentIndex = i
 					break
 				}
@@ -401,6 +400,7 @@ MainLoop:
 			break MainLoop
 
 		case resp := <-ap.InputChan:
+
 			// Switch case for player manipulation
 			switch resp {
 			// jump for the previous song
@@ -424,7 +424,37 @@ MainLoop:
 				song := queue[songIndex]
 				ap.GenerateStatePlayer(song)
 				break MainLoop
+
+			case "j":
+				speaker.Lock()
+				newPos := originalStreamer.Position() - ap.SampleRate.N(5*time.Second)
+
+				if newPos < 0 {
+					newPos = 0
+				}
+
+				err := originalStreamer.Seek(newPos)
+				if err != nil {
+					log.Fatal(err)
+					log.Printf("Não avançou")
+				}
+				speaker.Unlock()
+
+			case "l":
+				speaker.Lock()
+				newPos := originalStreamer.Position() + ap.SampleRate.N(5*time.Second)
+
+				if newPos >= originalStreamer.Len() {
+					newPos = originalStreamer.Len() - ap.SampleRate.N(time.Second)
+				}
+				err := originalStreamer.Seek(newPos)
+				if err != nil {
+					log.Fatal(err)
+				}
+				speaker.Unlock()
+
 			}
+
 		}
 	}
 
@@ -473,14 +503,14 @@ func GenerateShuffle(playlist []Musica) (shuffleList []Musica) {
 	return shuffleList
 }
 
-func (ap *AudioPlayer)GenerateStatePlayer(song Musica) (err error) {
+func (ap *AudioPlayer) GenerateStatePlayer(song Musica) (err error) {
 	state := PlayerState{
-		PSlastTrackPath:  song.Path,
-		PSvolume:       ap.Volume.Volume, // Pega o volume atual do Beep
-		PScurrentIndex: ap.CurrentIndex,
-		PSloopPlaylist: ap.LoopPlaylist,
-		PSloopSong:     ap.LoopSong,
-		PSplayShuffle:  ap.PlayShuffle,
+		PSlastTrackPath: song.Path,
+		PSvolume:        ap.Volume.Volume, // Pega o volume atual do Beep
+		PScurrentIndex:  ap.CurrentIndex,
+		PSloopPlaylist:  ap.LoopPlaylist,
+		PSloopSong:      ap.LoopSong,
+		PSplayShuffle:   ap.PlayShuffle,
 	}
 
 	jsonData, err := json.MarshalIndent(state, "", "  ")
@@ -495,7 +525,7 @@ func (ap *AudioPlayer)GenerateStatePlayer(song Musica) (err error) {
 		return err
 	}
 
-	err = os.WriteFile(filePath, jsonData, 0644)
+	err = os.WriteFile(filePath, jsonData, 0o644)
 	return err
 }
 
