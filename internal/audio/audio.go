@@ -422,7 +422,10 @@ MainLoop:
 			case "q":
 				end = true
 				song := queue[songIndex]
-				ap.GenerateStatePlayer(song)
+				err := ap.GenerateStatePlayer(song)
+				if err != nil {
+					return 0
+				}
 				break MainLoop
 
 			case "j":
@@ -512,6 +515,9 @@ func (ap *AudioPlayer) GenerateStatePlayer(song Musica) (err error) {
 		PSloopSong:      ap.LoopSong,
 		PSplayShuffle:   ap.PlayShuffle,
 	}
+
+	return nil
+}
 
 	jsonData, err := json.MarshalIndent(state, "", "  ")
 	if err != nil {
