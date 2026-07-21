@@ -1,12 +1,20 @@
 package main
 
 import (
+<<<<<<< HEAD
+=======
+	"encoding/json"
+	"fmt"
+>>>>>>> ab294f2 (Feature: now, walkmoon have a shortcut created by install.sh.)
 	"log"
 <<<<<<< HEAD
 =======
 	"os"
+<<<<<<< HEAD
 	"encoding/json"
 >>>>>>> b14e0f9 (Feat: now player can be initiated from that last state (music, volume, paused) that its left)
+=======
+>>>>>>> ab294f2 (Feature: now, walkmoon have a shortcut created by install.sh.)
 	"path/filepath"
 
 	"github.com/S0vina/walkmoon/internal/audio"
@@ -17,6 +25,7 @@ import (
 
 func main() {
 <<<<<<< HEAD
+<<<<<<< HEAD
 	var ap *audio.AudioPlayer
 	var state *audio.PlayerState
 	var err error
@@ -24,11 +33,21 @@ func main() {
 	var playlist []audio.Musica
 =======
 
+=======
+>>>>>>> ab294f2 (Feature: now, walkmoon have a shortcut created by install.sh.)
 	var state *audio.PlayerState
 	var defaultDir string
 >>>>>>> b14e0f9 (Feat: now player can be initiated from that last state (music, volume, paused) that its left)
 
+<<<<<<< HEAD
 	state, musicDir, err = config.LoadState[audio.PlayerState]()
+=======
+	configPath := "../../assets/memory/playerState.json"
+
+	jsonPlayerState, err := os.ReadFile(configPath)
+
+	// caso o json ainda nao tenha sido criado
+>>>>>>> ab294f2 (Feature: now, walkmoon have a shortcut created by install.sh.)
 	if err != nil {
 <<<<<<< HEAD
 		log.Printf("directory for musics has been loaded")
@@ -60,7 +79,7 @@ func main() {
 		//	log.Println(home)
 		//}
 
-		defaultDir = "./assets/music"
+		defaultDir = "../../assets/music"
 		state = nil
 
 	} else {
