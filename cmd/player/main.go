@@ -2,6 +2,7 @@ package main
 
 import (
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 	"encoding/json"
 	"fmt"
@@ -15,6 +16,9 @@ import (
 >>>>>>> b14e0f9 (Feat: now player can be initiated from that last state (music, volume, paused) that its left)
 =======
 >>>>>>> ab294f2 (Feature: now, walkmoon have a shortcut created by install.sh.)
+=======
+	"log"
+>>>>>>> 6cfe84f (Refact: Now, playerstate is created and updated in .config directory.)
 	"path/filepath"
 
 	"github.com/S0vina/walkmoon/internal/audio"
@@ -24,6 +28,7 @@ import (
 )
 
 func main() {
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
 	var ap *audio.AudioPlayer
@@ -78,26 +83,36 @@ func main() {
 		//	defaultDir = home
 		//	log.Println(home)
 		//}
+=======
+	var ap *audio.AudioPlayer
+	var state *audio.PlayerState
+	var err error
+	var musicDir string
+	var playlist []audio.Musica
 
-		defaultDir = "../../assets/music"
-		state = nil
+	state, musicDir, err = config.LoadState[audio.PlayerState]()
+	if err != nil {
+		log.Printf("directory for musics has been loaded")
+	}
+>>>>>>> 6cfe84f (Refact: Now, playerstate is created and updated in .config directory.)
 
+	ap, err = audio.New(state)
+	if err != nil {
+		log.Printf("Some problem ocurred in ap constructor", err)
+	}
+
+	if state != nil {
+		musicDir = filepath.Dir(state.PSlastTrackPath)
+		playlist, err = ap.ScanFolder(musicDir)
 	} else {
-		err = json.Unmarshal(jsonPlayerState, &state)
-		if err != nil {
-			log.Fatalf("Erro ao decodificar o JSON: %v", err)
-		}
-
-		defaultDir = filepath.Dir(state.PSlastTrackPath)
+		playlist, err = ap.ScanFolder(musicDir)
 	}
 
-	_ = defaultDir
-
-	ap, errNewAP := audio.New(state)
-	if errNewAP != nil {
-		log.Fatal(errNewAP)
+	if err != nil {
+		log.Fatal(err)
 	}
 
+<<<<<<< HEAD
 	// songs = [archives], err = any error
 	playlist, errScan := ap.ScanFolder(defaultDir)
 
@@ -114,6 +129,8 @@ func main() {
 
 	// for loop that play n songs of the folder
 >>>>>>> b14e0f9 (Feat: now player can be initiated from that last state (music, volume, paused) that its left)
+=======
+>>>>>>> 6cfe84f (Refact: Now, playerstate is created and updated in .config directory.)
 	go func() {
 		ap.Run(playlist)
 	}()
@@ -129,4 +146,8 @@ func main() {
 	if err != nil {
 		log.Printf("PlayerState could not be created", err)
 	}
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 6cfe84f (Refact: Now, playerstate is created and updated in .config directory.)
