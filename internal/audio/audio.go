@@ -202,21 +202,6 @@ func (ap *AudioPlayer) ScanFolder(root string) (playlist []Musica, err error) {
 	return playlist, err
 }
 
-// #####--------------------- TO DO ---------------------####
-// func decTypeArchive(f *os.File) {
-
-// }
-
-// Logica de contagem de tempo
-// select {
-// case <-done:
-// 	return
-// case <-time.After(time.Second):
-// 	speaker.Lock()
-// 	fmt.Println(format.SampleRate.D(streamer.Position()).Round(time.Second))
-// 	speaker.Unlock()
-// }
-
 // method: run audioPlayer
 func (ap *AudioPlayer) Run(playlist []Musica) {
 	var queue []Musica
