@@ -139,7 +139,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.player.AddVolume(-0.5)
 		case "m":
 			m.player.ToggleMute()
-		case "n", "p", "s":
+		case "n", "p", "s", "j", "l":
 			m.player.InputChan <- msg.String()
 		case "f":
 			m.ShowPicker = !m.ShowPicker
