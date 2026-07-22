@@ -2,7 +2,6 @@ package audio
 
 // imports
 import (
-	"encoding/json"
 	"log"
 	"math/rand"
 	"os"
@@ -46,6 +45,7 @@ type AudioPlayer struct {
 	EventChan      chan tea.Msg
 	SelectSongChan chan string
 	CurrentSong    Musica
+	PlayerState    PlayerState
 }
 
 type PlayerState struct {
@@ -106,7 +106,10 @@ func New(state *PlayerState) (ap *AudioPlayer, err error) {
 	loopPlaylist := loopP
 	loopSong := loopS
 	playShuffle := ps
-	speaker.Init(sr, sr.N(time.Second/10))
+	err = speaker.Init(sr, sr.N(time.Second/10))
+	if err != nil {
+		log.Printf("Speaker could not be initiaded")
+	}
 
 	ap = &AudioPlayer{
 		SampleRate:     sr,
@@ -352,7 +355,7 @@ func (ap *AudioPlayer) Play(songIndex int, queue []Musica) (imm int, end bool) {
 		return
 	}
 
-	var originalStreamer beep.StreamSeekCloser = streamer
+	originalStreamer := streamer
 	var finalStreamer beep.Streamer = streamer
 
 	if format.SampleRate != ap.SampleRate {
@@ -371,7 +374,7 @@ func (ap *AudioPlayer) Play(songIndex int, queue []Musica) (imm int, end bool) {
 		done <- true
 	})))
 
-	next_song := true
+	nextSong := true
 
 MainLoop:
 	for {
@@ -405,13 +408,13 @@ MainLoop:
 			switch resp {
 			// jump for the previous song
 			case "p":
-				next_song = false
+				nextSong = false
 				speaker.Clear()
 				break MainLoop
 
 			// jump for the next song
 			case "n":
-				next_song = true
+				nextSong = true
 				speaker.Clear()
 				break MainLoop
 
@@ -422,9 +425,9 @@ MainLoop:
 			case "q":
 				end = true
 				song := queue[songIndex]
-				err := ap.GenerateStatePlayer(song)
+				err := ap.StoreStatePlayer(song)
 				if err != nil {
-					return 0
+					log.Printf("Error: PlayerState json could'nt be created")
 				}
 				break MainLoop
 
@@ -461,7 +464,7 @@ MainLoop:
 		}
 	}
 
-	if !next_song {
+	if !nextSong {
 		imm = -1
 	}
 
@@ -506,8 +509,8 @@ func GenerateShuffle(playlist []Musica) (shuffleList []Musica) {
 	return shuffleList
 }
 
-func (ap *AudioPlayer) GenerateStatePlayer(song Musica) (err error) {
-	state := PlayerState{
+func (ap *AudioPlayer) StoreStatePlayer(song Musica) error {
+	ap.PlayerState = PlayerState{
 		PSlastTrackPath: song.Path,
 		PSvolume:        ap.Volume.Volume, // Pega o volume atual do Beep
 		PScurrentIndex:  ap.CurrentIndex,
@@ -518,24 +521,3 @@ func (ap *AudioPlayer) GenerateStatePlayer(song Musica) (err error) {
 
 	return nil
 }
-
-	jsonData, err := json.MarshalIndent(state, "", "  ")
-	if err != nil {
-		return err
-	}
-
-	filePath := "assets/memory/playerState.json"
-
-	pasta := filepath.Dir(filePath)
-	if err := os.MkdirAll(pasta, os.ModePerm); err != nil {
-		return err
-	}
-
-	err = os.WriteFile(filePath, jsonData, 0o644)
-	return err
-}
-
-// method: Changes the loopPlaylist bool value
-// func (ap *AudioPlayer) ToggleLoopPlaylist() {
-// 	ap.LoopPlaylist = !ap.LoopPlaylist
-// }

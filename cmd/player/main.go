@@ -1,70 +1,43 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
 	"log"
-	"os"
 	"path/filepath"
 
 	"github.com/S0vina/walkmoon/internal/audio"
+	"github.com/S0vina/walkmoon/internal/config"
 	"github.com/S0vina/walkmoon/internal/ui"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
 func main() {
+	var ap *audio.AudioPlayer
 	var state *audio.PlayerState
-	var defaultDir string
+	var err error
+	var musicDir string
+	var playlist []audio.Musica
 
-	configPath := "../../assets/memory/playerState.json"
-
-	jsonPlayerState, err := os.ReadFile(configPath)
-
-	// caso o json ainda nao tenha sido criado
+	state, musicDir, err = config.LoadState[audio.PlayerState]()
 	if err != nil {
-		//home, errHome := os.UserHomeDir()
-		//if errHome != nil {
-		//	defaultDir = "assets/music"
-		//	log.Printf("err home: %s", errHome)
-		//}else {
-		//	defaultDir = home
-		//	log.Println(home)
-		//}
+		log.Printf("directory for musics has been loaded")
+	}
 
-		defaultDir = "../../assets/music"
-		state = nil
+	ap, err = audio.New(state)
+	if err != nil {
+		log.Printf("Some problem ocurred in ap constructor", err)
+	}
 
+	if state != nil {
+		musicDir = filepath.Dir(state.PSlastTrackPath)
+		playlist, err = ap.ScanFolder(musicDir)
 	} else {
-		err = json.Unmarshal(jsonPlayerState, &state)
-		if err != nil {
-			log.Fatalf("Erro ao decodificar o JSON: %v", err)
-		}
-
-		defaultDir = filepath.Dir(state.PSlastTrackPath)
+		playlist, err = ap.ScanFolder(musicDir)
 	}
 
-	_ = defaultDir
-
-	ap, errNewAP := audio.New(state)
-	if errNewAP != nil {
-		log.Fatal(errNewAP)
+	if err != nil {
+		log.Fatal(err)
 	}
 
-	// songs = [archives], err = any error
-	playlist, errScan := ap.ScanFolder(defaultDir)
-
-	// if ocurre some error in scanFolder func
-	if errScan != nil {
-		log.Fatal(errScan)
-	}
-
-	// if folder with no songs, break the program
-	if len(playlist) == 0 {
-		fmt.Println("No songs founded.")
-		return
-	}
-
-	// for loop that play n songs of the folder
 	go func() {
 		ap.Run(playlist)
 	}()
@@ -74,5 +47,10 @@ func main() {
 
 	if _, err := programa.Run(); err != nil {
 		log.Fatal("erro ao iniciar a interface gráfica:", err)
+	}
+
+	err = config.SaveState(ap.PlayerState)
+	if err != nil {
+		log.Printf("PlayerState could not be created", err)
 	}
 }
