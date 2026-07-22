@@ -55,7 +55,7 @@ func New(p *audio.AudioPlayer, playlist []audio.Musica) Model {
 	fp := filepicker.New()
 	fp.SetHeight(10)
 	fp.CurrentDirectory, _ = os.UserHomeDir()
-	fp.AllowedTypes = []string{".mp3"}
+	fp.AllowedTypes = []string{".mp3", ".flac", "wav"}
 
 	return Model{
 		player:     p,
