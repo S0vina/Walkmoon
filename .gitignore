@@ -1,6 +1,7 @@
 # === Binários e Executáveis ===
 # Bloqueia os executáveis gerados no Windows e Linux
 *.exe
+*.mp3
 *.exe~
 *.dll
 *.so
