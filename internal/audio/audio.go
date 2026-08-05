@@ -208,7 +208,6 @@ func (ap *AudioPlayer) Run(playlist []Musica) {
 	var shuffleList []Musica
 
 	queue = playlist
-
 RunLoop:
 	for ap.CurrentIndex < len(queue) {
 		ap.CurrentSong = queue[ap.CurrentIndex]
