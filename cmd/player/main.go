@@ -1,4 +1,5 @@
 package main
+package audio
 
 import (
 	"log"
@@ -9,6 +10,15 @@ import (
 	"github.com/S0vina/walkmoon/internal/ui"
 	tea "github.com/charmbracelet/bubbletea"
 )
+
+type PlayerState struct {
+	PSlastTrackPath string `json:"Path"`
+	PSvolume int `json: "Volume"`
+	PScurrentIndex int `json: "CurrentIndex"`
+	PSloopPlaylist bool `json: "LoopPlaylist"`
+	PSloopSong bool `json: "LoopSong"`
+	PSplayShuffle bool `json: "PlayShuffle"`
+}
 
 func main() {
 	var ap *audio.AudioPlayer
