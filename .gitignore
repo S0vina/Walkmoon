@@ -6,7 +6,6 @@
 *.so
 *.dylib
 walkmoon
-player
 
 # === Arquivos de Build e Temporários do Go ===
 # Caso você use o diretório local para cache ou logs de profiling
