@@ -12,23 +12,24 @@ import (
 
 func main() {
 	var ap *audio.AudioPlayer
-	var state *audio.PlayerState
+	var state *config.PlayerState
+	var keybinds *config.PlayerKeybinds
 	var err error
 	var musicDir string
 	var playlist []audio.Musica
 
-	state, musicDir, err = config.LoadState[audio.PlayerState]()
+	state, err = config.LoadConfig[config.PlayerState]("player_state")
 	if err != nil {
 		log.Printf("directory for musics has been loaded")
 	}
 
-	ap, err = audio.New(state)
+	ap, err = audio.New(state, keybinds)
 	if err != nil {
 		log.Printf("Some problem ocurred in ap constructor", err)
 	}
 
 	if state != nil {
-		musicDir = filepath.Dir(state.PSlastTrackPath)
+		musicDir = filepath.Dir(state.LastTrackPath)
 		playlist, err = ap.ScanFolder(musicDir)
 	} else {
 		playlist, err = ap.ScanFolder(musicDir)
@@ -47,10 +48,5 @@ func main() {
 
 	if _, err := programa.Run(); err != nil {
 		log.Fatal("erro ao iniciar a interface gráfica:", err)
-	}
-
-	err = config.SaveState(ap.PlayerState)
-	if err != nil {
-		log.Printf("PlayerState could not be created", err)
 	}
 }

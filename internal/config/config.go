@@ -2,15 +2,38 @@ package config
 
 import (
 	"encoding/json"
-	"log"
 	"os"
 	"path/filepath"
 )
 
 type Config struct {
-	ConfigPath  string
-	SongsPath   string
-	ApStatePath string
+	PlayerState    PlayerState    `json:"player_state"`
+	PlayerKeybinds PlayerKeybinds `json:"player_keybinds"`
+}
+
+type PlayerState struct {
+	LastTrackPath string  `json:"path"`
+	Volume        float64 `json:"volume"`
+	CurrentIndex  int     `json:"index"`
+	LoopPlaylist  bool    `json:"loop_playlist"`
+	LoopSong      bool    `json:"loop_song"`
+	PlayShuffle   bool    `json:"play_shuffle"`
+}
+
+type PlayerKeybinds struct {
+	NextSong       string `json:"next_song"`
+	PreviousSong   string `json:"previous_song"`
+	PausePlayer    string `json:"pause_player"`
+	MutePlayer     string `json:"mute_player"`
+	AdvanceSong    string `json:"advance_song"`   // avança 5 segundos na música
+	ComeBackSong   string `json:"come_back_song"` // volta 5 segundos na música
+	FilePicker     string `json:"file_picker"`    // permite o usuário escolher uma música dentre suas pastas
+	ShuffleMode    string `json:"shuffle"`
+	LoopSongMode   string `json:"loop_song"`
+	LoopPlaylist   string `json:"loop_playlist"`
+	IncreaseVolume string `json:"increase_volume"`
+	DecreaseVolume string `json:"decrease_volume"`
+	Quit           string `json:"quit"`
 }
 
 func GetConfigDir() (string, error) {
@@ -21,70 +44,51 @@ func GetConfigDir() (string, error) {
 	}
 
 	// appConfigDir = the walkmoon dir in user config dir
-	appConfigDir := filepath.Join(userConfig, "walkmoon")
+	walkmoonDir := filepath.Join(userConfig, "walkmoon")
 
-	// create .config/walkmoon with read only permission for all, write only for user
-	err = os.MkdirAll(appConfigDir, 0o755)
+	// it makes sure that .config/walkmoon with read only permission, exists
+	err = os.MkdirAll(walkmoonDir, 0o755)
 	if err != nil {
 		return "", err
 	}
 
-	return appConfigDir, nil
+	return walkmoonDir, nil
 }
 
-func LoadState[T any]() (*T, string, error) {
-	var state *T
-	var defaultDir string
+func LoadConfig[T any](configType string) (*T, error) {
+	var target *T
 
-	// get the config path for any kind of SO
 	configDir, err := GetConfigDir()
 	if err != nil {
-		log.Printf("Aviso: Não foi possível obter o diretório de configuração: %v", err)
-		configDir = "."
+		return target, err
 	}
 
-	// statePath points for playerState file in configDir
-	statePath := filepath.Join(configDir, "playerState.json")
+	configFilePath := filepath.Join(configDir, configType+".json")
 
-	// read file in statePath
-	jsonData, err := os.ReadFile(statePath)
+	jsonData, err := os.ReadFile(configFilePath)
 	if err != nil {
-		// if statePlayer.json is not created, try to find home diretocry in any SO
-		homeDir, errHome := os.UserHomeDir()
-
-		// if can't find Defaul Music dir, panic path
-		if errHome != nil {
-			defaultDir = "."
-		} else {
-			// if homeDir, then puts Music dir in default
-			defaultDir = filepath.Join(homeDir, "Músicas")
-		}
-
-		return nil, defaultDir, nil
+		return target, err
 	}
 
-	if err := json.Unmarshal(jsonData, &state); err != nil {
-		log.Printf("Aviso: Falha ao decodificar %s: %v", statePath, err)
-
-		homeDir, _ := os.UserHomeDir()
-		return nil, filepath.Join(homeDir, "Music"), nil
+	if err := json.Unmarshal(jsonData, &target); err != nil {
+		return target, err
 	}
 
-	return state, defaultDir, nil
+	return target, nil
 }
 
-func SaveState(state any) error {
-	configDir, err := GetConfigDir()
+func SaveState(configType string, state any) error {
+	walkmoonDir, err := GetConfigDir()
 	if err != nil {
 		return err
 	}
 
-	statePath := filepath.Join(configDir, "playerState.json")
+	configFilePath := filepath.Join(walkmoonDir, configType+".json")
 
 	data, err := json.MarshalIndent(state, "", "  ")
 	if err != nil {
 		return err
 	}
 
-	return os.WriteFile(statePath, data, 0o644)
+	return os.WriteFile(configFilePath, data, 0o644)
 }

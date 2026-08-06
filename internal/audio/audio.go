@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/S0vina/walkmoon/internal/config"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/dhowden/tag"
 	"github.com/gopxl/beep/effects"
@@ -45,16 +46,8 @@ type AudioPlayer struct {
 	EventChan      chan tea.Msg
 	SelectSongChan chan string
 	CurrentSong    Musica
-	PlayerState    PlayerState
-}
-
-type PlayerState struct {
-	PSlastTrackPath string  `json:"Path"`
-	PSvolume        float64 `json: "Volume"`
-	PScurrentIndex  int     `json: "CurrentIndex"`
-	PSloopPlaylist  bool    `json: "LoopPlaylist"`
-	PSloopSong      bool    `json: "LoopSong"`
-	PSplayShuffle   bool    `json: "PlayShuffle"`
+	PlayerState    *config.PlayerState
+	PlayerKeybinds *config.PlayerKeybinds
 }
 
 type (
@@ -68,7 +61,7 @@ type ProgressChanged struct {
 }
 
 // method: creates a new audioPlayer
-func New(state *PlayerState) (ap *AudioPlayer, err error) {
+func New(state *config.PlayerState, keybinds *config.PlayerKeybinds) (ap *AudioPlayer, err error) {
 	sr := beep.SampleRate(44100)
 
 	ctrl := &beep.Ctrl{Paused: true} // o player comeca pausado
@@ -84,11 +77,11 @@ func New(state *PlayerState) (ap *AudioPlayer, err error) {
 	ps := false
 
 	if state != nil {
-		v = state.PSvolume
-		ci = state.PScurrentIndex
-		loopP = state.PSloopPlaylist
-		loopS = state.PSloopSong
-		ps = state.PSplayShuffle
+		v = state.Volume
+		ci = state.CurrentIndex
+		loopP = state.LoopPlaylist
+		loopS = state.LoopSong
+		ps = state.PlayShuffle
 	}
 
 	volume := &effects.Volume{
@@ -122,9 +115,10 @@ func New(state *PlayerState) (ap *AudioPlayer, err error) {
 		InputChan:      inputChan,
 		EventChan:      eventChan,
 		SelectSongChan: selectChan,
+		PlayerState:    state,
+		PlayerKeybinds: keybinds,
 	}
 
-	// log.Printf("Player montado com sucesso")
 	err = nil
 	return
 }
@@ -231,7 +225,7 @@ RunLoop:
 			return
 		}
 
-		// if playshuffle and shufflelist is not initiated
+		// if playshuffle and shufflelist is not initiate
 		if ap.PlayShuffle && len(shuffleList) == 0 {
 			shuffleList = GenerateShuffle(playlist)
 
@@ -247,11 +241,8 @@ RunLoop:
 
 			queue = shuffleList
 			ap.CurrentIndex = 0
-			continue RunLoop
-		}
 
-		// if sequencial mode is on and shuffleMode was on before
-		if !ap.PlayShuffle && len(shuffleList) > 0 {
+		} else if !ap.PlayShuffle && len(shuffleList) > 0 {
 
 			currentSong := shuffleList[ap.CurrentIndex]
 			aux := currentSong.Id + imm
@@ -260,12 +251,20 @@ RunLoop:
 
 			queue = playlist
 			ap.CurrentIndex = ap.updateSong(aux, queue)
-			continue RunLoop
+
+		} else {
+			ap.CurrentIndex = ap.updateSong(count, queue)
 		}
 
-		ap.CurrentIndex = ap.updateSong(count, queue)
+		ap.PlayerState.LastTrackPath = queue[ap.CurrentIndex].Path
+		ap.PlayerState.Volume = ap.Volume.Volume
+		ap.PlayerState.CurrentIndex = ap.CurrentIndex
+		ap.PlayerState.LoopPlaylist = ap.LoopPlaylist
+		ap.PlayerState.LoopSong = ap.LoopSong
+		ap.PlayerState.PlayShuffle = ap.PlayShuffle
 
-		// log.Println(ap.PlayShuffle)
+		config.SaveState("player_state", ap.PlayerState)
+		continue RunLoop
 	}
 }
 
@@ -391,31 +390,27 @@ MainLoop:
 			// Switch case for player manipulation
 			switch resp {
 			// jump for the previous song
-			case "p":
+			case ap.PlayerKeybinds.PreviousSong:
 				nextSong = false
 				speaker.Clear()
 				break MainLoop
 
 			// jump for the next song
-			case "n":
+			case ap.PlayerKeybinds.NextSong:
 				nextSong = true
 				speaker.Clear()
 				break MainLoop
 
-			case "s":
+			case ap.PlayerKeybinds.ShuffleMode:
 				ap.PlayShuffle = !ap.PlayShuffle
 				ap.EventChan <- ShuffleState{}
 
-			case "q":
+			case ap.PlayerKeybinds.Quit:
+				config.SaveState("player_state", ap.PlayerState)
 				end = true
-				song := queue[songIndex]
-				err := ap.StoreStatePlayer(song)
-				if err != nil {
-					log.Printf("Error: PlayerState json could'nt be created")
-				}
 				break MainLoop
 
-			case "j":
+			case ap.PlayerKeybinds.ComeBackSong:
 				speaker.Lock()
 				newPos := originalStreamer.Position() - ap.SampleRate.N(5*time.Second)
 
@@ -430,7 +425,7 @@ MainLoop:
 				}
 				speaker.Unlock()
 
-			case "l":
+			case ap.PlayerKeybinds.AdvanceSong:
 				speaker.Lock()
 				newPos := originalStreamer.Position() + ap.SampleRate.N(5*time.Second)
 
@@ -486,22 +481,8 @@ func GenerateShuffle(playlist []Musica) (shuffleList []Musica) {
 		// Sorteia um índice entre 0 e i
 		j := rand.Intn(i + 1)
 
-		// Troca os elementos de lugar (Go faz isso em uma linha!)
 		shuffleList[i], shuffleList[j] = shuffleList[j], shuffleList[i]
 	}
 
 	return shuffleList
-}
-
-func (ap *AudioPlayer) StoreStatePlayer(song Musica) error {
-	ap.PlayerState = PlayerState{
-		PSlastTrackPath: song.Path,
-		PSvolume:        ap.Volume.Volume, // Pega o volume atual do Beep
-		PScurrentIndex:  ap.CurrentIndex,
-		PSloopPlaylist:  ap.LoopPlaylist,
-		PSloopSong:      ap.LoopSong,
-		PSplayShuffle:   ap.PlayShuffle,
-	}
-
-	return nil
 }
