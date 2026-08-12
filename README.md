@@ -1,4 +1,4 @@
-# 🎧 Walkmoon
+ # 🎧 Walkmoon
 
 A music player focused on quality, customization, and efficiency, built with Go.
 
@@ -31,7 +31,7 @@ O **Walkmoon** nasce do desejo de ouvir música em um ambiente leve, integrado �
 
 1. Clone o repositório em um diretório de sua preferência:
    ```bash
-   git clone [https://github.com/seu-usuario/walkmoon.git](https://github.com/seu-usuario/walkmoon.git)
+   git clone https://github.com/S0vina/Walkmoon.git
    cd walkmoon
     
 2. Rode o instalador:
